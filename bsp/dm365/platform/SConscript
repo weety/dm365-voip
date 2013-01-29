@@ -1,0 +1,16 @@
+Import('RTT_ROOT')
+from building import *
+
+cwd = GetCurrentDir()
+src = Split("""
+dm365.c
+dma.c
+findbit.S
+""")
+
+# The set of source files associated with this SConscript file.
+path = [cwd]
+
+group = DefineGroup('Startup', src, depend = [''], CPPPATH = path)
+
+Return('group')

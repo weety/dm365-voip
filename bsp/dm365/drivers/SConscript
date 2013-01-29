@@ -1,0 +1,22 @@
+Import('RTT_ROOT')
+from building import *
+
+cwd = GetCurrentDir()
+#src_drv = ['']
+
+# The set of source files associated with this SConscript file.
+path = [cwd]
+
+#if GetDepend('RT_USING_I2C'):
+#	src_drv += ['i2c-davinci.c']
+
+#src	= File(src_drv)
+src = Split("""
+i2c-davinci.c
+pcf8563.c
+mmcsd.c
+""")
+
+group = DefineGroup('Startup', src, depend = [''], CPPPATH = path)
+
+Return('group')
