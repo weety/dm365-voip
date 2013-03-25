@@ -14,7 +14,6 @@
 
 #include <rtthread.h>
 #include "dm36x.h"
-#include "interrupt.h"
 
 #define MAX_HANDLERS	64
 
@@ -23,7 +22,6 @@ extern rt_uint32_t rt_interrupt_nest;
 struct rt_irq_desc irq_desc[MAX_HANDLERS];
 
 /* exception and interrupt handler table */
-//rt_isr_handler_t isr_table[MAX_HANDLERS];
 rt_uint32_t rt_interrupt_from_thread, rt_interrupt_to_thread;
 rt_uint32_t rt_thread_switch_interrput_flag;
 
@@ -123,7 +121,7 @@ static inline void davinci_irq_writel(unsigned long value, int offset)
  */
 /*@{*/
 
-rt_isr_handler_t rt_hw_interrupt_handle(rt_uint32_t vector)
+rt_isr_handler_t rt_hw_interrupt_handle(int vector, void *param)
 {
 	rt_kprintf("Unhandled interrupt %d occured!!!\n", vector);
 	return RT_NULL;
@@ -173,9 +171,9 @@ void rt_hw_interrupt_init(void)
 	/* init exceptions table */
 	for(idx=0; idx < MAX_HANDLERS; idx++)
 	{
-		//isr_table[idx] = (rt_isr_handler_t)rt_hw_interrupt_handle;
 		rt_snprintf(irq_desc[idx].irq_name, RT_NAME_MAX - 1, "default");
 		irq_desc[idx].isr_handle = (rt_isr_handler_t)rt_hw_interrupt_handle;
+		irq_desc[idx].param = RT_NULL;
 		irq_desc[idx].interrupt_cnt = 0;
 	}
 
@@ -233,19 +231,31 @@ void rt_hw_interrupt_umask(int irq)
 /**
  * This function will install a interrupt service routine to a interrupt.
  * @param vector the interrupt number
- * @param new_handler the interrupt service routine to be installed
- * @param old_handler the old interrupt service routine
+ * @param handler the interrupt service routine to be installed
+ * @param param the interrupt service function parameter
+ * @param name the interrupt name
+ * @return old handler
  */
-void rt_hw_interrupt_install(int vector, rt_isr_handler_t handler, char *name)
+
+rt_isr_handler_t rt_hw_interrupt_install(int vector, rt_isr_handler_t handler,
+									void *param, char *name)
 {
+	rt_isr_handler_t old_handler = RT_NULL;
+
 	if(vector < MAX_HANDLERS)
 	{
-		//if (*old_handler != RT_NULL) *old_handler = isr_table[vector];
-		//if (new_handler != RT_NULL) isr_table[vector] = new_handler;
-		rt_snprintf(irq_desc[vector].irq_name, RT_NAME_MAX - 1, "%s", name);
-		irq_desc[vector].isr_handle = (rt_isr_handler_t)handler;
-		irq_desc[vector].interrupt_cnt = 0;
+		old_handler = irq_desc[vector].isr_handle;
+		if (handler != RT_NULL)
+		{
+			rt_snprintf(irq_desc[vector].irq_name, RT_NAME_MAX - 1, "%s", name);
+			irq_desc[vector].isr_handle = (rt_isr_handler_t)handler;
+			irq_desc[vector].param = param;
+			irq_desc[vector].interrupt_cnt = 0;
+		}
 	}
+
+	return old_handler;
+
 }
 
 #ifdef RT_USING_FINSH

@@ -107,9 +107,6 @@ struct davinci_i2c_dev {
 	struct rt_i2c_bus_device *bus;
 };
 
-static struct davinci_i2c_dev *i2c_dev;
-
-
 static inline void davinci_i2c_write_reg(struct davinci_i2c_dev *i2c_dev,
 					 int reg, rt_uint16_t val)
 {
@@ -484,9 +481,9 @@ static void terminate_write(struct davinci_i2c_dev *dev)
  * Interrupt service routine. This gets called whenever an I2C interrupt
  * occurs.
  */
-static void i2c_davinci_isr(int irq)
+static void i2c_davinci_isr(int irq, void *param)
 {
-	struct davinci_i2c_dev *dev = i2c_dev;
+	struct davinci_i2c_dev *dev = (struct davinci_i2c_dev *)param;
 	rt_uint32_t stat;
 	int count = 0;
 	rt_uint16_t w;
@@ -586,7 +583,6 @@ static void i2c_davinci_isr(int irq)
 
 static struct rt_i2c_bus_device_ops bus_ops = {
 	.master_xfer	= i2c_davinci_xfer,
-	//.functionality	= i2c_davinci_func,
 };
 
 int davinci_i2c_init(char *bus_name)
@@ -616,9 +612,6 @@ int davinci_i2c_init(char *bus_name)
 
 	rt_memset((void *)dev, 0, sizeof(struct davinci_i2c_dev));
 
-	i2c_dev = dev;
-
-	//init_completion(&dev->cmd_complete);
 	rt_sem_init(&dev->completion, "i2c_ack", 0, RT_IPC_FLAG_FIFO);
 
 	dev->irq = IRQ_I2C;
@@ -639,7 +632,7 @@ int davinci_i2c_init(char *bus_name)
 
 	i2c_davinci_init(dev);
 
-	rt_hw_interrupt_install(dev->irq, i2c_davinci_isr, "I2C");
+	rt_hw_interrupt_install(dev->irq, i2c_davinci_isr, (void *)dev, "I2C");
 	rt_hw_interrupt_umask(dev->irq);
 
 	return rt_i2c_bus_device_register(bus, bus_name);

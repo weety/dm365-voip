@@ -16,20 +16,14 @@
 #include <rthw.h>
 
 #include "board.h"
-//#include "led.h"
 
 /**
  * @addtogroup dm365
  */
 /*@{*/
 
-//extern rt_uint32_t PCLK, FCLK, HCLK, UCLK;
-
 extern void rt_hw_clock_init(void);
-//extern void rt_hw_lcd_init(void);
 extern void rt_hw_mmu_init(void);
-//extern void rt_hw_touch_init(void);
-//extern void rt_hw_key_init(void);
 
 extern void rt_hw_get_clock(void);
 extern void rt_hw_set_dividor(rt_uint8_t hdivn, rt_uint8_t pdivn);
@@ -49,7 +43,7 @@ struct rt_device uart0_device;
 /**
  * This function will handle rtos timer
  */
-void rt_timer_handler(int vector)
+void rt_timer_handler(int vector, void *param)
 {
 	rt_tick_increase();
 }
@@ -57,10 +51,10 @@ void rt_timer_handler(int vector)
 /**
  * This function will handle serial
  */
-void rt_serial_handler(int vector)
+void rt_serial_handler(int vector, void *param)
 {
-	//if (UART0->iir & 0x0e)
-	rt_hw_serial_isr(&uart0_device);
+	rt_device_t dev = (rt_device_t)param;
+	rt_hw_serial_isr(dev);
 }
 
 /**
@@ -85,7 +79,8 @@ void rt_hw_uart_init(void)
 	UART0->mdr = 0; //16x over-sampling
 	UART0->pwremu_mgmt = 0x6000;
 	
-	rt_hw_interrupt_install(IRQ_UARTINT0, rt_serial_handler, "UART0");
+	rt_hw_interrupt_install(IRQ_UARTINT0, rt_serial_handler, 
+							(void *)&uart0_device, "UART0");
 	rt_hw_interrupt_umask(IRQ_UARTINT0);
 	UART0->ier = 0x05;
 }
@@ -119,7 +114,8 @@ void rt_hw_uart_init(void)
 	
 
 	/* install interrupt handler */
-	rt_hw_interrupt_install(IRQ_DM365_TINT2, rt_timer_handler, "timer1_12");//IRQ_DM365_TINT0_TINT12
+	rt_hw_interrupt_install(IRQ_DM365_TINT2, rt_timer_handler,
+							RT_NULL, "timer1_12");//IRQ_DM365_TINT0_TINT12
 	rt_hw_interrupt_umask(IRQ_DM365_TINT2);//IRQ_DM365_TINT2
 
  }

@@ -65,7 +65,6 @@ struct mmc_dm365_host
 	rt_bool_t   use_dma_buffer;
 	rt_bool_t   sdio_int;
 };
-static struct mmc_dm365_host *dm365_host;
 
 void *mmc_priv(struct rt_mmcsd_host *host)
 {
@@ -1164,9 +1163,9 @@ static void dm365_abort_data(struct mmc_dm365_host *host, struct rt_mmcsd_data *
 	mmc_dm365_reset_ctrl(host, 0);
 }
 
-static void mmc_dm365_sdio_irq(int irq)
+static void mmc_dm365_sdio_irq(int irq, void *param)
 {
-	struct mmc_dm365_host *host = dm365_host;
+	struct mmc_dm365_host *host = (struct mmc_dm365_host *)param;
 	rt_uint32_t status;
 
 	status = host->mmcsd_regs->SDIOIST;//readl(host->base + DAVINCI_SDIOIST);
@@ -1191,9 +1190,9 @@ static void mmc_dm365_sdio_irq(int irq)
 ** 调用模块: 无
 **
 ********************************************************************************************************/
-static void mmc_dm365_irq(int irq)
+static void mmc_dm365_irq(int irq, void *param)
 {
-	struct mmc_dm365_host *host = dm365_host;
+	struct mmc_dm365_host *host = (struct mmc_dm365_host *)param;
 	rt_uint32_t status, qstatus;
 	int end_command = 0;
 	int end_transfer = 0;
@@ -1369,6 +1368,7 @@ static void rt_hw_edma_init(void)
 rt_int32_t rt_hw_mmcsd_init(void)
 {
 	struct clk  *clk;
+	struct mmc_dm365_host *dm365_host;
 	struct rt_mmcsd_host *mmc = RT_NULL;
 
 	mmc = mmcsd_alloc_host();
@@ -1430,13 +1430,16 @@ rt_int32_t rt_hw_mmcsd_init(void)
 
 	/* install interrupt */
 #ifdef RT_USING_MMCSD0
-	rt_hw_interrupt_install(IRQ_DM3XX_MMCINT0, mmc_dm365_irq, "MMC0");
+	rt_hw_interrupt_install(IRQ_DM3XX_MMCINT0, mmc_dm365_irq, 
+							(void *)dm365_host, "MMC0");
 	rt_hw_interrupt_umask(IRQ_DM3XX_MMCINT0);
-	rt_hw_interrupt_install(IRQ_DM3XX_SDIOINT0, mmc_dm365_sdio_irq, "SDIO0");
+	rt_hw_interrupt_install(IRQ_DM3XX_SDIOINT0, mmc_dm365_sdio_irq, 
+							(void *)dm365_host, "SDIO0");
 	rt_hw_interrupt_umask(IRQ_DM3XX_SDIOINT0);
 #endif
 #ifdef RT_USING_MMCSD1
-	rt_hw_interrupt_install(MMCSD_INT1, mmc_dm365_irq, RT_NULL);
+	rt_hw_interrupt_install(MMCSD_INT1, mmc_dm365_irq, 
+							(void *)dm365_host, "MMC1");
 	rt_hw_interrupt_umask(MMCSD_INT1);
 #endif
 

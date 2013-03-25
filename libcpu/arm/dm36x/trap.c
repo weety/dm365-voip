@@ -16,7 +16,6 @@
 #include <rthw.h>
 
 #include "dm36x.h"
-#include "interrupt.h"
 
 /**
  * @addtogroup DM36X
@@ -139,7 +138,6 @@ void rt_hw_trap_resv(struct rt_hw_register *regs)
 	rt_hw_cpu_shutdown();
 }
 
-//extern rt_isr_handler_t isr_table[];
 extern struct rt_irq_desc irq_desc[];
 
 
@@ -147,6 +145,7 @@ void rt_hw_trap_irq()
 {
 	rt_isr_handler_t isr_func;
 	rt_uint32_t val, irq, mask;
+	void *param;
 
 	/* get irq number */
 	val = readl(DAVINCI_ARM_INTC_BASE+0x14) - readl(DAVINCI_ARM_INTC_BASE+0x24);
@@ -159,11 +158,11 @@ void rt_hw_trap_irq()
 		writel(mask, DAVINCI_ARM_INTC_BASE+0x08); //IRQ0
 	
 	/* get interrupt service routine */
-	//isr_func = isr_table[irq];
 	isr_func = irq_desc[irq].isr_handle;
+	param = irq_desc[irq].param;
 
 	/* turn to interrupt service routine */
-	isr_func(irq);
+	isr_func(irq, param);
 	irq_desc[irq].interrupt_cnt++;
 }
 
