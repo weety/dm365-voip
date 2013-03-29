@@ -11,8 +11,8 @@ CROSS_TOOL 	= 'gcc'
 
 if  CROSS_TOOL == 'gcc':
 	PLATFORM 	= 'gcc'
-	#EXEC_PATH 	= '/opt/arm-2010q1/bin'#'/opt/arm-2009q1/bin/'
-	EXEC_PATH = 'E:\Program Files\CodeSourcery\Sourcery G++ Lite\bin'
+	EXEC_PATH 	= '/opt/arm-2010q1/bin'#'/opt/arm-2009q1/bin/'
+	#EXEC_PATH = 'E:\Program Files\CodeSourcery\Sourcery G++ Lite\bin'
 elif CROSS_TOOL == 'keil':
 	PLATFORM 	= 'armcc'
 	EXEC_PATH 	= 'E:/Keil'

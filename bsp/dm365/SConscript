@@ -8,9 +8,6 @@ src_drv = ['console.c']
 #if GetDepend('RT_USING_DFS'):
 	#src_drv += ['sdcard.c']
 
-if GetDepend('RT_USING_LWIP'):
-	src_drv += ['dm9000.c']
-
 if GetDepend('RT_USING_RTGUI'):
     src_drv += ['touch.c', 'key.c', 'calibration.c']
 

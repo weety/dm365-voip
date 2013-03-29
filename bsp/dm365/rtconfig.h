@@ -131,14 +131,14 @@
 #define RT_USING_SDIO
 #define RT_MMCSD_DBG
 
-#if 0
 /* SECTION: lwip, a lightweight TCP/IP protocol stack */
 /* Using lightweight TCP/IP protocol stack */
-// #define RT_USING_LWIP
+#define RT_USING_LWIP
 #define RT_LWIP_DNS
 
 /* Trace LwIP protocol */
-/* #define RT_LWIP_DEBUG */
+/*#define RT_LWIP_DEBUG*/
+#define RT_USING_NETUTILS
 
 /* Enable ICMP protocol */
 #define RT_LWIP_ICMP
@@ -210,7 +210,6 @@
 
 /* thread stack size of ethnetif thread */
 #define RT_LWIP_ETHTHREAD_STACKSIZE	1024
-#endif
 
 /* SECTION: RTGUI support */
 /* using RTGUI support */

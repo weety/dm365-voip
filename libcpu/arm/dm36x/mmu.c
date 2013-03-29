@@ -387,6 +387,20 @@ void mmu_clean_invalidated_cache_index(int index)
 	asm ("mcr p15, 0, %0, c7, c14, 2": :"r" (index));
 }
 
+void mmu_clean_invalidated_dcache(rt_uint32_t buffer, rt_uint32_t size)
+{
+    unsigned int ptr;
+
+    ptr = buffer & ~0x1f;
+
+    while(ptr < buffer + size)
+    {
+    	asm ("mcr p15, 0, %0, c7, c14, 1": :"r" (ptr));
+        ptr += 32;
+    }
+}
+
+
 void mmu_clean_dcache(rt_uint32_t buffer, rt_uint32_t size)
 {
 	unsigned int ptr;

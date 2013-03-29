@@ -17,6 +17,9 @@ pcf8563.c
 mmcsd.c
 """)
 
+if GetDepend('RT_USING_LWIP'):
+	src += ['davinci_emac.c']
+
 group = DefineGroup('Startup', src, depend = [''], CPPPATH = path)
 
 Return('group')
