@@ -1526,11 +1526,11 @@ int edma_init(struct edma_soc_info **info)
 		sizeof(edma_cc[0]->edma_unused));
 
 	edma_cc[0]->irq_res_start = IRQ_CCINT0;
-	rt_hw_interrupt_install(IRQ_CCINT0, dma_irq_handler, "edma");
+	rt_hw_interrupt_install(IRQ_CCINT0, dma_irq_handler, RT_NULL, "edma");
 	rt_hw_interrupt_umask(IRQ_CCINT0);
 
 	edma_cc[0]->irq_res_end = IRQ_CCERRINT;
-	rt_hw_interrupt_install(IRQ_CCERRINT, dma_ccerr_handler, "edma_error");
+	rt_hw_interrupt_install(IRQ_CCERRINT, dma_ccerr_handler, RT_NULL, "edma_error");
 	rt_hw_interrupt_umask(IRQ_CCERRINT);
 
 	/* Everything lives on transfer controller 1 until otherwise
