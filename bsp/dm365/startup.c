@@ -22,7 +22,6 @@
 
 extern void rt_hw_interrupt_init(void);
 extern void rt_hw_board_init(void);
-//extern void rt_hw_rtc_init(void);
 extern void rt_serial_init(void);
 extern void rt_system_timer_init(void);
 extern void rt_system_scheduler_init(void);
@@ -112,7 +111,7 @@ void rtthread_startup(void)
 
 	/* initialize heap memory system */
 #ifdef __CC_ARM
-	rt_system_heap_init((void*)&Image$$ER_ZI$$ZI$$Limit, (void*)0x33F00000);
+	rt_system_heap_init((void*)&Image$$ER_ZI$$ZI$$Limit, (void*)0x88000000);
 #else
 	rt_system_heap_init((void*)&__bss_end, (void*)0x88000000);
 #endif
@@ -126,21 +125,14 @@ void rtthread_startup(void)
 	rt_system_scheduler_init();
 
 #ifdef RT_USING_DEVICE
-	/* register uart1 */
-	rt_hw_serial_register(&uart0_device, "uart0",
-		RT_DEVICE_FLAG_RDWR | RT_DEVICE_FLAG_STREAM | 
-		RT_DEVICE_FLAG_INT_RX,
-		&uart0);
-
-#ifdef RT_USING_DFS
-	//rt_hw_sdcard_init();
-#endif
-
-	/* rtc init */
-	//rt_hw_rtc_init();
+	rt_davinci_uart_init();
 
 	/*init all registed devices */
 	rt_device_init_all();
+#endif
+
+#ifdef RT_USING_CONSOLE
+	rt_console_set_device(RT_CONSOLE_DEVICE_NAME);
 #endif
 
 	/* initialize application */
@@ -150,16 +142,12 @@ void rtthread_startup(void)
 	/* initialize finsh */
 	finsh_system_init();
 #ifdef RT_USING_DEVICE
-	finsh_set_device("uart0");
+	finsh_set_device(RT_CONSOLE_DEVICE_NAME);
 #endif
 #endif
 
 	/* initialize system timer thread */
 	rt_system_timer_thread_init();
-	
-	//rt_swi();
-	//enable_irq();
-	//breakpoint();
 
 	/* initialize idle thread */
 	rt_thread_idle_init();

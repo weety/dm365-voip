@@ -66,15 +66,18 @@
 /* SECTION: Device System */
 /* Using Device System */
 #define RT_USING_DEVICE
+#define RT_USING_DEVICE_IPC
 
 /* Using Module System */
 //#define RT_USING_MODULE
 #define RT_USING_LIBDL
 
+#define RT_USING_SERIAL
 /* SECTION: Console options */
 #define RT_USING_CONSOLE
 /* the buffer size of console */
 #define RT_CONSOLEBUF_SIZE	128
+#define RT_CONSOLE_DEVICE_NAME "uart0"
 
 /* SECTION: finsh, a C-Express shell */
 /* Using FinSH as Shell*/

@@ -1,6 +1,36 @@
 #include <rtthread.h>
+#include <dm36x.h>
 
-#include <serial.h>
+#define LSR_DR		0x01		/* Data ready */
+#define LSR_THRE	0x20		/* Xmit holding register empty */
+//#define	USTAT_TXB_EMPTY		0x02   	/* tx buffer empty */
+#define BPS					115200	/* serial baudrate */
+
+typedef struct uartport
+{
+	volatile rt_uint32_t rbr;
+	volatile rt_uint32_t ier;
+	volatile rt_uint32_t fcr;
+	volatile rt_uint32_t lcr;
+	volatile rt_uint32_t mcr;
+	volatile rt_uint32_t lsr;
+	volatile rt_uint32_t msr;
+	volatile rt_uint32_t scr;
+	volatile rt_uint32_t dll;
+	volatile rt_uint32_t dlh;
+	
+	volatile rt_uint32_t res[2];
+	volatile rt_uint32_t pwremu_mgmt;
+	volatile rt_uint32_t mdr;
+}uartport;
+
+#define thr rbr
+#define iir fcr
+
+#define UART0	((struct uartport *)DAVINCI_UART0_BASE)
+
+#define UART1	((struct uartport *)DM365_UART1_BASE)
+
 
 #define RT_CONSOLE_WIDTH		240
 #define RT_CONSOLE_HEIGHT		320
@@ -15,7 +45,6 @@
 
 #define RT_CONSOLE_FOREPIXEL	(0x001f)
 
-extern struct serial_device uart0;
 
 struct rt_console
 {
@@ -161,8 +190,8 @@ void rt_hw_serial_putc(const char c)
 	*/
 	if (c=='\n')rt_hw_serial_putc('\r');
 
-	while (!(uart0.uart_device->lsr & LSR_THRE));
-	uart0.uart_device->thr = (c & 0x1FF);
+	while (!(UART0->lsr & LSR_THRE));
+	UART0->thr = (c & 0x1FF);
 }
 
 /**
@@ -177,4 +206,25 @@ void rt_hw_console_output(const char* str)
 		rt_hw_serial_putc(*str++);
 	}
 }
+
+void rt_hw_uart_init(void)
+{
+	rt_uint32_t divisor;
+
+	divisor = (24000000 + (115200 * (16 / 2))) / (16 * 115200);
+	UART0->ier = 0;
+	UART0->lcr = 0x83; //8N1
+	UART0->dll = 0;
+	UART0->dlh = 0;
+	UART0->lcr = 0x03;
+	UART0->mcr = 0x03; //RTS,CTS
+	UART0->fcr = 0x07; //FIFO
+	UART0->lcr = 0x83;
+	UART0->dll = divisor & 0xff;
+	UART0->dlh = (divisor >> 8) & 0xff;
+	UART0->lcr = 0x03;
+	UART0->mdr = 0; //16x over-sampling
+	UART0->pwremu_mgmt = 0x6000;
+}
+
 

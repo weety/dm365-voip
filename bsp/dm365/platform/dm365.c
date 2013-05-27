@@ -294,7 +294,6 @@ int davinci_clk_init(void)
 
 void platform_init(void)
 {
-	davinci_clk_init();
 	edma_init(dm365_edma_info);
 }
 

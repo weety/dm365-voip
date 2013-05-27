@@ -15,6 +15,7 @@ src = Split("""
 i2c-davinci.c
 pcf8563.c
 mmcsd.c
+davinci_serial.c
 """)
 
 if GetDepend('RT_USING_LWIP'):

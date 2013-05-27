@@ -28,17 +28,7 @@ extern void rt_hw_mmu_init(void);
 extern void rt_hw_get_clock(void);
 extern void rt_hw_set_dividor(rt_uint8_t hdivn, rt_uint8_t pdivn);
 extern void rt_hw_set_clock(rt_uint8_t sdiv, rt_uint8_t pdiv, rt_uint8_t mdiv);
-
-
-#define UART0	((struct uartport *)DAVINCI_UART0_BASE)
-struct serial_int_rx uart0_int_rx;
-struct serial_device uart0 =
-{
-	UART0,
-	&uart0_int_rx,
-	RT_NULL
-};
-struct rt_device uart0_device;
+extern void rt_hw_uart_init(void);
 
 /**
  * This function will handle rtos timer
@@ -55,34 +45,6 @@ void rt_serial_handler(int vector, void *param)
 {
 	rt_device_t dev = (rt_device_t)param;
 	rt_hw_serial_isr(dev);
-}
-
-/**
- * This function will handle init uart
- */
-void rt_hw_uart_init(void)
-{
-	rt_uint32_t divisor;
-
-	divisor = (24000000 + (115200 * (16 / 2))) / (16 * 115200);
-	UART0->ier = 0;
-	UART0->lcr = 0x83; //8N1
-	UART0->dll = 0;
-	UART0->dlh = 0;
-	UART0->lcr = 0x03;
-	UART0->mcr = 0x03; //RTS,CTS
-	UART0->fcr = 0x07; //FIFO
-	UART0->lcr = 0x83;
-	UART0->dll = divisor & 0xff;
-	UART0->dlh = (divisor >> 8) & 0xff;
-	UART0->lcr = 0x03;
-	UART0->mdr = 0; //16x over-sampling
-	UART0->pwremu_mgmt = 0x6000;
-	
-	rt_hw_interrupt_install(IRQ_UARTINT0, rt_serial_handler, 
-							(void *)&uart0_device, "UART0");
-	rt_hw_interrupt_umask(IRQ_UARTINT0);
-	UART0->ier = 0x05;
 }
 
 /**
@@ -128,21 +90,11 @@ void rt_hw_board_init()
 	psc_change_state(DAVINCI_DM365_LPSC_TIMER0, 3);
 	psc_change_state(DAVINCI_DM365_LPSC_TIMER1, 3);
 	/* initialize the system clock */
-	rt_hw_clock_init();
-
-	/* Get the clock */
-	//rt_hw_get_clock();
-
-	/* initialize led port */
-	//rt_hw_led_init();
+	//rt_hw_clock_init();
+	davinci_clk_init();
 
 	/* initialize uart */
 	rt_hw_uart_init();
-
-#ifdef RT_USING_RTGUI
-	/* init virtual keypad */
-	//rt_hw_key_init();
-#endif
 
 	/* initialize mmu */
 	rt_hw_mmu_init();
