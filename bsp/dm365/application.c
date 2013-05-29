@@ -45,8 +45,6 @@
 
 #ifdef RT_USING_LWIP
 #include <netif/ethernetif.h>
-//#include <arch/sys_arch_init.h>
-//#include "macb.h"
 #endif
 
 #ifdef RT_USING_LED
@@ -93,7 +91,7 @@ void rt_init_thread_entry(void* parameter)
 
 		#ifdef RT_USING_NEWLIB
 		/* init libc */
-		libc_system_init("uart0");
+		libc_system_init(RT_CONSOLE_DEVICE_NAME);
 		#endif
 #endif
 
