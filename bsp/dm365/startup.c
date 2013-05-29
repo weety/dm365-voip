@@ -32,9 +32,6 @@ extern void rt_system_heap_init(void*, void*);
 extern void rt_hw_finsh_init(void);
 extern void rt_application_init(void);
 
-extern struct serial_device uart0;
-extern struct rt_device uart0_device;
-
 /**
  * @addtogroup dm365
  */
