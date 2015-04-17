@@ -3,26 +3,33 @@
  * This file is part of RT-Thread RTOS
  * COPYRIGHT (C) 2006, RT-Thread Develop Team
  *
- * The license and distribution terms for this file may be
- * found in the file LICENSE in this distribution or at
- * http://openlab.rt-thread.com/license/LICENSE
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Change Logs:
  * Date           Author       Notes
- * 2006-03-13     Bernard      first version
+ * 2011-01-13     weety      modified from mini2440
  */
 
 #include <rthw.h>
 #include <rtthread.h>
-#include "dm36x.h"
-
-/**
- * @addtogroup DM36X
- */
-/*@{*/
 
 #define ICACHE_MASK	(rt_uint32_t)(1 << 12)
 #define DCACHE_MASK	(rt_uint32_t)(1 << 2)
+
+extern void machine_reset(void);
+extern void machine_shutdown(void);
 
 #ifdef __GNUC__
 rt_inline rt_uint32_t cp15_rd(void)
@@ -154,20 +161,9 @@ rt_base_t rt_hw_cpu_dcache_status()
  */
 void rt_hw_cpu_reset()
 {
-	/* Disable all interrupt except the WDT */
-	writel(0, DM365_EINT_ENABLE0);
-	writel(0, DM365_EINT_ENABLE1);
 	
 	rt_kprintf("Restarting system...\n");
-
-	/* Disable watchdog */
-	//WTCON = 0x0000;
-
-	/* Initialize watchdog timer count register */
-	//WTCNT = 0x0001;
-
-	/* Enable watchdog timer; assert reset at timer timeout */
-	//WTCON = 0x0021;
+	machine_reset();
 
 	while(1);	/* loop forever and wait for reset to happen */
 
@@ -184,10 +180,67 @@ void rt_hw_cpu_shutdown()
 	rt_kprintf("shutdown...\n");
 
 	level = rt_hw_interrupt_disable();
+	machine_shutdown();
 	while (level)
 	{
 		RT_ASSERT(0);
 	}
 }
+
+#ifdef RT_USING_CPU_FFS
+/**
+ * This function finds the first bit set (beginning with the least significant bit) 
+ * in value and return the index of that bit.
+ *
+ * Bits are numbered starting at 1 (the least significant bit).  A return value of 
+ * zero from any of these functions means that the argument was zero.
+ * 
+ * @return return the index of the first bit set. If value is 0, then this function 
+ * shall return 0.
+ */
+#if defined(__CC_ARM)
+int __rt_ffs(int value)
+{
+	register rt_uint32_t x;
+
+	if (value == 0)
+		return value;
+	
+	__asm
+	{
+		rsb x, value, #0
+		and x, x, value
+		clz x, x
+		rsb x, x, #32
+	}
+
+	return x;
+}
+#elif defined(__IAR_SYSTEMS_ICC__)
+int __rt_ffs(int value)
+{
+	if (value == 0)
+		return value;
+
+	__ASM("RSB  r4, r0, #0");
+	__ASM("AND  r4, r4, r0");
+	__ASM("CLZ  r4, r4");
+	__ASM("RSB  r0, r4, #32");
+}
+#elif defined(__GNUC__)
+int __rt_ffs(int value)
+{
+	if (value == 0)
+		return value;
+
+	value &= (-value);
+	asm ("clz %0, %1": "=r"(value) :"r"(value));
+
+	return (32 - value);
+}
+#endif
+
+#endif
+
 
 /*@}*/

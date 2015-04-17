@@ -72,6 +72,9 @@
 //#define RT_USING_MODULE
 #define RT_USING_LIBDL
 
+/* Interrupt debug */
+#define RT_USING_INTERRUPT_INFO
+
 #define RT_USING_SERIAL
 /* SECTION: Console options */
 #define RT_USING_CONSOLE
@@ -89,14 +92,13 @@
 
 /* SECTION: the runtime libc library */
 /* the runtime libc library */
-#define RT_USING_NEWLIB
+#define RT_USING_LIBC
 #define RT_USING_PTHREADS
 
 /* SECTION: C++ support */
 /* Using C++ support */
 /* #define RT_USING_CPLUSPLUS */
 
-#if 1
 /* SECTION: Device filesystem support */
 /* using DFS support */
 #define RT_USING_DFS
@@ -124,7 +126,6 @@
 #define DFS_FD_MAX					16
 /* the max number of cached sector 		*/
 #define DFS_CACHE_MAX_NUM   		4
-#endif
 
 /* Enable freemodbus protocol stack*/
 /* #define RT_USING_MODBUS */
@@ -162,7 +163,7 @@
 #define RT_LWIP_TCP_SND_BUF	1024*10
 
 /* TCP receive window. */
-#define RT_LWIP_TCP_WND	1024
+#define RT_LWIP_TCP_WND	1460*8
 
 /* Enable SNMP protocol */
 /* #define RT_LWIP_SNMP */

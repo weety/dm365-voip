@@ -13,6 +13,7 @@
  */
 
 #include <rtthread.h>
+#include <rthw.h>
 #include "dm36x.h"
 
 #define MAX_HANDLERS	64
@@ -23,7 +24,7 @@ struct rt_irq_desc irq_desc[MAX_HANDLERS];
 
 /* exception and interrupt handler table */
 rt_uint32_t rt_interrupt_from_thread, rt_interrupt_to_thread;
-rt_uint32_t rt_thread_switch_interrput_flag;
+rt_uint32_t rt_thread_switch_interrupt_flag;
 
 #define IRQ_BIT(irq)		((irq) & 0x1f)
 
@@ -171,17 +172,20 @@ void rt_hw_interrupt_init(void)
 	/* init exceptions table */
 	for(idx=0; idx < MAX_HANDLERS; idx++)
 	{
-		rt_snprintf(irq_desc[idx].irq_name, RT_NAME_MAX - 1, "default");
-		irq_desc[idx].isr_handle = (rt_isr_handler_t)rt_hw_interrupt_handle;
+		
+		irq_desc[idx].handler = (rt_isr_handler_t)rt_hw_interrupt_handle;
 		irq_desc[idx].param = RT_NULL;
-		irq_desc[idx].interrupt_cnt = 0;
+	#ifdef RT_USING_INTERRUPT_INFO
+		rt_snprintf(irq_desc[idx].name, RT_NAME_MAX - 1, "default");
+		irq_desc[idx].counter = 0;
+	#endif
 	}
 
 	/* init interrupt nest, and context in thread sp */
 	rt_interrupt_nest = 0;
 	rt_interrupt_from_thread = 0;
 	rt_interrupt_to_thread = 0;
-	rt_thread_switch_interrput_flag = 0;
+	rt_thread_switch_interrupt_flag = 0;
 }
 
 /**
@@ -244,13 +248,15 @@ rt_isr_handler_t rt_hw_interrupt_install(int vector, rt_isr_handler_t handler,
 
 	if(vector < MAX_HANDLERS)
 	{
-		old_handler = irq_desc[vector].isr_handle;
+		old_handler = irq_desc[vector].handler;
 		if (handler != RT_NULL)
 		{
-			rt_snprintf(irq_desc[vector].irq_name, RT_NAME_MAX - 1, "%s", name);
-			irq_desc[vector].isr_handle = (rt_isr_handler_t)handler;
+			irq_desc[vector].handler = (rt_isr_handler_t)handler;
 			irq_desc[vector].param = param;
-			irq_desc[vector].interrupt_cnt = 0;
+		#ifdef RT_USING_INTERRUPT_INFO
+			rt_snprintf(irq_desc[vector].name, RT_NAME_MAX - 1, "%s", name);
+			irq_desc[vector].counter = 0;
+		#endif
 		}
 	}
 
@@ -259,6 +265,7 @@ rt_isr_handler_t rt_hw_interrupt_install(int vector, rt_isr_handler_t handler,
 }
 
 #ifdef RT_USING_FINSH
+#ifdef RT_USING_INTERRUPT_INFO
 void list_irq(void)
 {
 	int irq;
@@ -266,12 +273,13 @@ void list_irq(void)
 	rt_kprintf("number\tcount\tname\n");
 	for (irq = 0; irq < MAX_HANDLERS; irq++)
 	{
-		if (rt_strncmp(irq_desc[irq].irq_name, "default", sizeof("default")))
+		if (rt_strncmp(irq_desc[irq].name, "default", sizeof("default")))
 		{
-			rt_kprintf("%02ld: %10ld  %s\n", irq, irq_desc[irq].interrupt_cnt, irq_desc[irq].irq_name);
+			rt_kprintf("%02ld: %10ld  %s\n", irq, irq_desc[irq].counter, irq_desc[irq].name);
 		}
 	}
 }
+#endif
 
 #include <finsh.h>
 FINSH_FUNCTION_EXPORT(list_irq, list system irq);

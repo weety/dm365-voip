@@ -121,17 +121,6 @@ void rtthread_startup(void)
 	/* initialize scheduler system */
 	rt_system_scheduler_init();
 
-#ifdef RT_USING_DEVICE
-	rt_davinci_uart_init();
-
-	/*init all registed devices */
-	rt_device_init_all();
-#endif
-
-#ifdef RT_USING_CONSOLE
-	rt_console_set_device(RT_CONSOLE_DEVICE_NAME);
-#endif
-
 	/* initialize application */
 	rt_application_init();
 

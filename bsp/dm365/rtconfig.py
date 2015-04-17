@@ -1,7 +1,3 @@
-# panel options
-# 'PNL_A70','PNL_N35', 'PNL_T35'
-#RT_USING_LCD_TYPE = 'PNL_T35'
-
 # toolchains options
 ARCH     = 'arm'
 CPU      = 'dm36x'
@@ -11,8 +7,8 @@ CROSS_TOOL 	= 'gcc'
 
 if  CROSS_TOOL == 'gcc':
 	PLATFORM 	= 'gcc'
-	EXEC_PATH 	= '/opt/arm-2010q1/bin'#'/opt/arm-2009q1/bin/'
-	#EXEC_PATH = 'E:\Program Files\CodeSourcery\Sourcery G++ Lite\bin'
+	#EXEC_PATH 	= '/opt/arm-2010q1/bin'
+	EXEC_PATH = r'D:\arm-2013.11\bin'
 elif CROSS_TOOL == 'keil':
 	PLATFORM 	= 'armcc'
 	EXEC_PATH 	= 'E:/Keil'

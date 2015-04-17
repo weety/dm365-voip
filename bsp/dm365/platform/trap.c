@@ -158,12 +158,12 @@ void rt_hw_trap_irq()
 		writel(mask, DAVINCI_ARM_INTC_BASE+0x08); //IRQ0
 	
 	/* get interrupt service routine */
-	isr_func = irq_desc[irq].isr_handle;
+	isr_func = irq_desc[irq].handler;
 	param = irq_desc[irq].param;
 
 	/* turn to interrupt service routine */
 	isr_func(irq, param);
-	irq_desc[irq].interrupt_cnt++;
+	irq_desc[irq].counter++;
 }
 
 void rt_hw_trap_fiq()

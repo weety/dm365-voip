@@ -3,21 +3,37 @@
  * This file is part of RT-Thread RTOS
  * COPYRIGHT (C) 2006, RT-Thread Development Team
  *
- * The license and distribution terms for this file may be
- * found in the file LICENSE in this distribution or at
- * http://openlab.rt-thread.com/license/LICENSE
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Change Logs:
  * Date           Author       Notes
- * 2006-03-13     Bernard      the first version
+ * 2011-01-13     weety      copy from mini2440
  */
 #include <rtthread.h>
-#include "dm36x.h"
 
-/**
- * @addtogroup DM36X
- */
-/*@{*/
+/*****************************/
+/* CPU Mode                  */
+/*****************************/
+#define USERMODE		0x10
+#define FIQMODE			0x11
+#define IRQMODE			0x12
+#define SVCMODE			0x13
+#define ABORTMODE		0x17
+#define UNDEFMODE		0x1b
+#define MODEMASK		0x1f
+#define NOINT			0xc0
 
 /**
  * This function will initialize thread stack
@@ -57,4 +73,3 @@ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter,
 	return (rt_uint8_t *)stk;
 }
 
-/*@}*/

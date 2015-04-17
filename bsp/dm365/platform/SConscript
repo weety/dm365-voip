@@ -3,9 +3,15 @@ from building import *
 
 cwd = GetCurrentDir()
 src = Split("""
+start_gcc.S
 dm365.c
 dma.c
 findbit.S
+interrupt.c
+psc.c
+reset.c
+system_clock.c
+trap.c
 """)
 
 # The set of source files associated with this SConscript file.

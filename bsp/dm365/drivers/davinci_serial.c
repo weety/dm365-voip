@@ -4,10 +4,8 @@
 #include <rtdevice.h>
 
 static struct rt_serial_device davinci_serial_dev0;
-static struct serial_ringbuffer davinci_int_rx0;
 
 static struct rt_serial_device davinci_serial_dev1;
-static struct serial_ringbuffer davinci_int_rx1;
 
 
 #define LSR_DR		0x01		/* Data ready */
@@ -46,8 +44,8 @@ typedef struct uartport
  */
 void rt_davinci_serial_handler(int vector, void *param)
 {
-	rt_device_t dev = (rt_device_t)param;
-	rt_hw_serial_isr(dev);
+	struct rt_serial_device *dev = (struct rt_serial_device *)param;
+	rt_hw_serial_isr(dev, RT_SERIAL_EVENT_RX_IND);
 }
 
 /**
@@ -130,7 +128,7 @@ void davinci_uart0_init(void)
 	UART0->mdr = 0; //16x over-sampling
 	UART0->pwremu_mgmt = 0x6000;
 	rt_hw_interrupt_install(IRQ_UARTINT0, rt_davinci_serial_handler, 
-							(void *)&(davinci_serial_dev0.parent), "UART0");
+							(void *)&davinci_serial_dev0, "UART0");
 	rt_hw_interrupt_umask(IRQ_UARTINT0);
 	UART0->ier = 0x05;
 }
@@ -182,7 +180,7 @@ void davinci_uart1_init(void)
 	UART1->pwremu_mgmt = 0x6000;
 	
 	rt_hw_interrupt_install(IRQ_UARTINT1, rt_davinci_serial_handler, 
-							(void *)&(davinci_serial_dev1.parent), "UART1");
+							(void *)&davinci_serial_dev1, "UART1");
 	rt_hw_interrupt_umask(IRQ_UARTINT1);
 	UART1->ier = 0x05;
 }
@@ -191,10 +189,9 @@ void davinci_uart1_init(void)
 /**
  * This function will handle init uart
  */
-void rt_davinci_uart_init(void)
+void rt_hw_uart_init(void)
 {
 	davinci_serial_dev0.ops = &davinci_uart_ops;
-    davinci_serial_dev0.int_rx = &davinci_int_rx0;
     //davinci_serial_dev0.config = RT_SERIAL_CONFIG_DEFAULT;
 	davinci_serial_dev0.config.baud_rate = BAUD_RATE_115200;
     davinci_serial_dev0.config.bit_order = BIT_ORDER_LSB;
@@ -202,6 +199,7 @@ void rt_davinci_uart_init(void)
     davinci_serial_dev0.config.parity = PARITY_NONE;
     davinci_serial_dev0.config.stop_bits = STOP_BITS_1;
     davinci_serial_dev0.config.invert = NRZ_NORMAL;
+	davinci_serial_dev0.config.bufsz = RT_SERIAL_RB_BUFSZ;
 
     /* register vcom device */
     rt_hw_serial_register(&davinci_serial_dev0, "uart0",
@@ -210,7 +208,6 @@ void rt_davinci_uart_init(void)
 	davinci_uart0_init();
 
 	davinci_serial_dev1.ops = &davinci_uart_ops;
-    davinci_serial_dev1.int_rx = &davinci_int_rx1;
     //davinci_serial_dev1.config = RT_SERIAL_CONFIG_DEFAULT;
 	davinci_serial_dev1.config.baud_rate = BAUD_RATE_115200;
     davinci_serial_dev1.config.bit_order = BIT_ORDER_LSB;
@@ -218,6 +215,7 @@ void rt_davinci_uart_init(void)
     davinci_serial_dev1.config.parity = PARITY_NONE;
     davinci_serial_dev1.config.stop_bits = STOP_BITS_1;
     davinci_serial_dev1.config.invert = NRZ_NORMAL;
+	davinci_serial_dev1.config.bufsz = RT_SERIAL_RB_BUFSZ;
 
     /* register vcom device */
     rt_hw_serial_register(&davinci_serial_dev1, "uart1",

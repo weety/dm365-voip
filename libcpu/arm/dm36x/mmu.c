@@ -3,38 +3,25 @@
  * This file is part of RT-Thread RTOS
  * COPYRIGHT (C) 2006, RT-Thread Development Team
  *
- * The license and distribution terms for this file may be
- * found in the file LICENSE in this distribution or at
- * http://www.rt-thread.org/license/LICENSE
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Change Logs:
  * Date           Author       Notes
- * 2012-01-10     bernard      porting to AM1808
  */
 
-#include <rtthread.h>
-
-#define DESC_SEC		(0x2|(1<<4))
-#define CB				(3<<2)  //cache_on, write_back
-#define CNB				(2<<2)  //cache_on, write_through
-#define NCB				(1<<2)  //cache_off,WR_BUF on
-#define NCNB			(0<<2)  //cache_off,WR_BUF off
-#define AP_RW			(3<<10) //supervisor=RW, user=RW
-#define AP_RO			(2<<10) //supervisor=RW, user=RO
-
-#define DOMAIN_FAULT	(0x0)
-#define DOMAIN_CHK		(0x1)
-#define DOMAIN_NOTCHK	(0x3)
-#define DOMAIN0			(0x0<<5)
-#define DOMAIN1			(0x1<<5)
-
-#define DOMAIN0_ATTR	(DOMAIN_CHK<<0)
-#define DOMAIN1_ATTR	(DOMAIN_FAULT<<2)
-
-#define RW_CB		(AP_RW|DOMAIN0|CB|DESC_SEC)		/* Read/Write, cache, write back */
-#define RW_CNB		(AP_RW|DOMAIN0|CNB|DESC_SEC)	/* Read/Write, cache, write through */
-#define RW_NCNB		(AP_RW|DOMAIN0|NCNB|DESC_SEC)	/* Read/Write without cache and write buffer */
-#define RW_FAULT	(AP_RW|DOMAIN1|NCNB|DESC_SEC)	/* Read/Write without cache and write buffer */
+#include "mmu.h"
 
 #ifdef __CC_ARM
 void mmu_setttbase(rt_uint32_t i)
@@ -176,7 +163,7 @@ void mmu_clean_invalidated_dcache(rt_uint32_t buffer, rt_uint32_t size)
 {
     unsigned int ptr;
 
-    ptr = buffer & ~0x1f;
+    ptr = buffer & ~(CACHE_LINE_SIZE - 1);
 
     while(ptr < buffer + size)
     {
@@ -184,7 +171,7 @@ void mmu_clean_invalidated_dcache(rt_uint32_t buffer, rt_uint32_t size)
     	{
     		MCR p15, 0, ptr, c7, c14, 1
     	}
-        ptr += 32;
+        ptr += CACHE_LINE_SIZE;
     }
 }
 
@@ -192,7 +179,7 @@ void mmu_clean_dcache(rt_uint32_t buffer, rt_uint32_t size)
 {
 	unsigned int ptr;
 
-	ptr = buffer & ~0x1f;
+	ptr = buffer & ~(CACHE_LINE_SIZE - 1);
 
 	while (ptr < buffer + size)
 	{
@@ -200,7 +187,7 @@ void mmu_clean_dcache(rt_uint32_t buffer, rt_uint32_t size)
 		{
 			MCR p15, 0, ptr, c7, c10, 1
 		}
-		ptr += 32;
+		ptr += CACHE_LINE_SIZE;
 	}
 }
 
@@ -208,7 +195,7 @@ void mmu_invalidate_dcache(rt_uint32_t buffer, rt_uint32_t size)
 {
 	unsigned int ptr;
 
-	ptr = buffer & ~0x1f;
+	ptr = buffer & ~(CACHE_LINE_SIZE - 1);
 
 	while (ptr < buffer + size)
 	{
@@ -216,7 +203,7 @@ void mmu_invalidate_dcache(rt_uint32_t buffer, rt_uint32_t size)
 		{
 			MCR p15, 0, ptr, c7, c6, 1
 		}
-		ptr += 32;
+		ptr += CACHE_LINE_SIZE;
 	}
 }
 
@@ -391,12 +378,12 @@ void mmu_clean_invalidated_dcache(rt_uint32_t buffer, rt_uint32_t size)
 {
     unsigned int ptr;
 
-    ptr = buffer & ~0x1f;
+    ptr = buffer & ~(CACHE_LINE_SIZE - 1);
 
     while(ptr < buffer + size)
     {
     	asm ("mcr p15, 0, %0, c7, c14, 1": :"r" (ptr));
-        ptr += 32;
+        ptr += CACHE_LINE_SIZE;
     }
 }
 
@@ -405,12 +392,12 @@ void mmu_clean_dcache(rt_uint32_t buffer, rt_uint32_t size)
 {
 	unsigned int ptr;
 
-	ptr = buffer & ~0x1f;
+	ptr = buffer & ~(CACHE_LINE_SIZE - 1);
 
 	while (ptr < buffer + size)
 	{
 		asm ("mcr p15, 0, %0, c7, c10, 1": :"r" (ptr));
-		ptr += 32;
+		ptr += CACHE_LINE_SIZE;
 	}
 }
 
@@ -418,12 +405,12 @@ void mmu_invalidate_dcache(rt_uint32_t buffer, rt_uint32_t size)
 {
 	unsigned int ptr;
 
-	ptr = buffer & ~0x1f;
+	ptr = buffer & ~(CACHE_LINE_SIZE - 1);
 
 	while (ptr < buffer + size)
 	{
 		asm ("mcr p15, 0, %0, c7, c6, 1": :"r" (ptr));
-		ptr += 32;
+		ptr += CACHE_LINE_SIZE;
 	}
 }
 
@@ -458,7 +445,7 @@ void mmu_setmtt(rt_uint32_t vaddrStart, rt_uint32_t vaddrEnd, rt_uint32_t paddrS
     }
 }
 
-void rt_hw_mmu_init(void)
+void rt_hw_mmu_init(struct mem_desc *mdesc, rt_uint32_t size)
 {
 	/* disable I/D cache */
 	mmu_disable_dcache();
@@ -467,12 +454,12 @@ void rt_hw_mmu_init(void)
 	mmu_invalidate_tlb();
 
 	/* set page table */
-	mmu_setmtt(0x00000000, 0xFFFFFFFF, 0x00000000, RW_NCNB);    /* None cached for 4G memory	*/
-	mmu_setmtt(0x80000000, 0x88000000-1, 0x80000000, RW_CB);    /* 128M cached DDR memory 		*/
-	mmu_setmtt(0x00000000, 0x100000, 0x80000000, RW_CB);    /* 128M cached DDR memory 		*/
-	mmu_setmtt(0x90000000, 0x100000, 0x00000000, RW_CB);    /* 128M cached DDR memory 		*/
-	mmu_setmtt(0xA0000000, 0xA8000000-1, 0x80000000, RW_NCNB);  /* 128M none-cached DDR memory */
-	//mmu_setmtt(0x00200000, 0x00040000-1, 0x00200000, RW_CB);    /* 128k OnChip memory 			*/
+	for (; size > 0; size--)
+	{
+		mmu_setmtt(mdesc->vaddr_start, mdesc->vaddr_end, 
+			mdesc->paddr_start, mdesc->attr);
+		mdesc++;
+	}
 
 	/* set MMU table address */
 	mmu_setttbase((rt_uint32_t)_page_table);
