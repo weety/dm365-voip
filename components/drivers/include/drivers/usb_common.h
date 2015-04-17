@@ -3,13 +3,24 @@
  * This file is part of RT-Thread RTOS
  * COPYRIGHT (C) 2012, RT-Thread Development Team
  *
- * The license and distribution terms for this file may be
- * found in the file LICENSE in this distribution or at
- * http://www.rt-thread.org/license/LICENSE
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Change Logs:
  * Date           Author       Notes
  * 2012-10-01     Yi Qiu       first version
+ * 2013-04-26     aozima       add DEVICEQUALIFIER support.
  */
 
 #ifndef __USB_COMMON_H__
@@ -138,12 +149,21 @@ extern "C" {
 #define USB_EPNO_MASK                   0x7f
 #define USB_DIR_OUT                     0x00
 #define USB_DIR_IN                      0x80
+#define USB_DIR_INOUT                   0x40
 #define USB_DIR_MASK                    0x80
+
+#define ID_UNASSIGNED                   0
+#define ID_ASSIGNED                     1
 
 #define RH_GET_PORT_STATUS              0
 #define RH_SET_PORT_STATUS              1
 #define RH_CLEAR_PORT_FEATURE           2
 #define RH_SET_PORT_FEATURE             3
+
+#define USB_BUS_POWERED                 0
+#define USB_SELF_POWERED                1
+#define USB_REMOTE_WAKEUP               1
+#define USB_EP_HALT                     0
 
 /*
  * Port feature numbers
@@ -195,6 +215,7 @@ extern "C" {
 
 #define USB_EP_ATTR(attr)               (attr & USB_EP_ATTR_TYPE_MASK)
 #define USB_EP_DESC_NUM(addr)           (addr & USB_EP_DESC_NUM_MASK)
+#define USB_EP_DIR(addr)                ((addr & USB_DIR_MASK)>>7)
 
 #define uswap_32(x) \
     ((((x) & 0xff000000) >> 24) | \
@@ -207,6 +228,18 @@ extern "C" {
     (((rt_uint16_t)(*(((rt_uint8_t *)(x)) + 1))) << 8))
 
 typedef void (*func_callback)(void *context);
+typedef enum
+{
+    USB_STATE_NOTATTACHED = 0,
+    USB_STATE_ATTACHED,
+    USB_STATE_POWERED,
+    USB_STATE_RECONNECTING,
+    USB_STATE_UNAUTHENTICATED,
+    USB_STATE_DEFAULT,
+    USB_STATE_ADDRESS,
+    USB_STATE_CONFIGURED,
+    USB_STATE_SUSPENDED
+}udevice_state_t;
 
 #pragma pack(1)
 
@@ -217,7 +250,7 @@ struct usb_descriptor
 };
 typedef struct usb_descriptor* udesc_t;
 
-struct udevice_descriptor 
+struct udevice_descriptor
 {
     rt_uint8_t bLength;
     rt_uint8_t type;
@@ -236,7 +269,7 @@ struct udevice_descriptor
 };
 typedef struct udevice_descriptor* udev_desc_t;
 
-struct uconfig_descriptor 
+struct uconfig_descriptor
 {
     rt_uint8_t bLength;
     rt_uint8_t type;
@@ -250,7 +283,7 @@ struct uconfig_descriptor
 };
 typedef struct uconfig_descriptor* ucfg_desc_t;
 
-struct uinterface_descriptor 
+struct uinterface_descriptor
 {
     rt_uint8_t bLength;
     rt_uint8_t type;
@@ -265,7 +298,7 @@ struct uinterface_descriptor
 typedef struct uinterface_descriptor* uintf_desc_t;
 
 /* Interface Association Descriptor (IAD) */
-struct uiad_descriptor 
+struct uiad_descriptor
 {
     rt_uint8_t bLength;
     rt_uint8_t bDescriptorType;
@@ -278,7 +311,7 @@ struct uiad_descriptor
 };
 typedef struct uiad_descriptor* uiad_desc_t;
 
-struct uendpoint_descriptor 
+struct uendpoint_descriptor
 {
     rt_uint8_t bLength;
     rt_uint8_t type;
@@ -289,7 +322,7 @@ struct uendpoint_descriptor
 };
 typedef struct uendpoint_descriptor* uep_desc_t;
 
-struct ustring_descriptor 
+struct ustring_descriptor
 {
     rt_uint8_t bLength;
     rt_uint8_t type;
@@ -297,33 +330,65 @@ struct ustring_descriptor
 };
 typedef struct ustring_descriptor* ustr_desc_t;
 
-struct uhub_descriptor 
+struct uhub_descriptor
 {
     rt_uint8_t length;
     rt_uint8_t type;
     rt_uint8_t num_ports;
-    rt_uint16_t characteristics;    
+    rt_uint16_t characteristics;
     rt_uint8_t pwron_to_good;        /* power on to power good */
-    rt_uint8_t current;    
+    rt_uint8_t current;
     rt_uint8_t removable[8];
     rt_uint8_t pwr_ctl[8];
 };
 typedef struct uhub_descriptor* uhub_desc_t;
 
-struct ureqest
+/* USB_DESC_TYPE_DEVICEQUALIFIER: Device Qualifier descriptor */
+struct usb_qualifier_descriptor
+{
+    rt_uint8_t  bLength;
+    rt_uint8_t  bDescriptorType;
+
+    rt_uint16_t bcdUSB; // TODO: big-endian.
+    rt_uint8_t  bDeviceClass;
+    rt_uint8_t  bDeviceSubClass;
+    rt_uint8_t  bDeviceProtocol;
+    rt_uint8_t  bMaxPacketSize0;
+    rt_uint8_t  bNumConfigurations;
+    rt_uint8_t  bRESERVED;
+} __attribute__ ((packed));
+
+struct uhid_descriptor
+{
+    rt_uint8_t bLength;
+    rt_uint8_t type;
+    rt_uint16_t bcdHID;
+    rt_uint8_t bCountryCode;
+    rt_uint8_t bNumDescriptors;
+    struct hid_descriptor_list
+    {
+        rt_uint8_t type;
+        rt_uint16_t wLength;
+    }Descriptor[1];
+};
+typedef struct uhid_descriptor* uhid_desc_t;
+
+struct urequest
 {
     rt_uint8_t request_type;
     rt_uint8_t request;
     rt_uint16_t value;
-    rt_uint16_t index;    
+    rt_uint16_t index;
     rt_uint16_t length;
 };
-typedef struct ureqest* ureq_t;
+typedef struct urequest* ureq_t;
 
+#ifndef MIN
 #define MIN(a, b) (a < b ? a : b)
 #define MAX(a, b) (a > b ? a : b)
+#endif
 
-/* 
+/*
  * the define related to mass storage
  */
 #define USBREQ_GET_MAX_LUN              0xfe
@@ -331,6 +396,11 @@ typedef struct ureqest* ureq_t;
 
 #define SIZEOF_CSW                      0x0d
 #define SIZEOF_CBW                      0x1f
+#define SIZEOF_INQUIRY_CMD              0x24
+#define SIZEOF_MODE_SENSE_6             0x4
+#define SIZEOF_READ_CAPACITIES          0xc
+#define SIZEOF_READ_CAPACITY            0x8
+#define SIZEOF_REQUEST_SENSE            0x12
 
 #define CBWFLAGS_DIR_M                  0x80
 #define CBWFLAGS_DIR_IN                 0x80
@@ -339,8 +409,9 @@ typedef struct ureqest* ureq_t;
 #define SCSI_TEST_UNIT_READY            0x00
 #define SCSI_REQUEST_SENSE              0x03
 #define SCSI_INQUIRY_CMD                0x12
-#define SCSI_ALLOW_MEDIUM_REMOVAL       0x1e
+#define SCSI_ALLOW_REMOVAL              0x1e
 #define SCSI_MODE_SENSE_6               0x1a
+#define SCSI_START_STOP                 0x1b
 #define SCSI_READ_CAPACITIES            0x23
 #define SCSI_READ_CAPACITY              0x25
 #define SCSI_READ_10                    0x28
@@ -351,7 +422,7 @@ typedef struct ureqest* ureq_t;
 #define CSW_SIGNATURE                   0x53425355
 #define CBW_TAG_VALUE                   0x12345678
 
-struct ustorage_cbw 
+struct ustorage_cbw
 {
     rt_uint32_t signature;
     rt_uint32_t tag;
@@ -363,16 +434,30 @@ struct ustorage_cbw
 };
 typedef struct ustorage_cbw* ustorage_cbw_t;
 
-struct ustorage_csw 
+struct ustorage_csw
 {
     rt_uint32_t signature;
     rt_uint32_t tag;
-    rt_uint32_t data_reside;
+    rt_int32_t data_reside;
     rt_uint8_t  status;
 };
 typedef struct ustorage_csw* ustorage_csw_t;
 
 #pragma pack()
+
+/*
+ * USB device event loop thread configurations
+ */
+/* the stack size of USB thread */
+#ifndef RT_USBD_THREAD_STACK_SZ
+#define RT_USBD_THREAD_STACK_SZ 2048
+#endif
+
+/* the priority of USB thread */
+#ifndef RT_USBD_THREAD_PRIO
+#define RT_USBD_THREAD_PRIO 8
+#endif
+
 
 #ifdef __cplusplus
 }

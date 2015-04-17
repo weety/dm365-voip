@@ -3,9 +3,19 @@
  * This file is part of Device File System in RT-Thread RTOS
  * COPYRIGHT (C) 2004-2012, RT-Thread Development Team
  *
- * The license and distribution terms for this file may be
- * found in the file LICENSE in this distribution or at
- * http://www.rt-thread.org/license/LICENSE.
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Change Logs:
  * Date           Author       Notes
@@ -15,8 +25,6 @@
 #include <dfs.h>
 #include <dfs_fs.h>
 #include <dfs_file.h>
-
-#define NO_WORKING_DIR  "system does not support working dir\n"
 
 /* Global variables */
 const struct dfs_filesystem_operation *filesystem_operation_table[DFS_FILESYSTEM_TYPES_MAX];
@@ -44,7 +52,7 @@ struct dfs_fd fd_table[DFS_FD_MAX];
 /**
  * this function will initialize device file system.
  */
-void dfs_init(void)
+int dfs_init(void)
 {
     /* clear filesystem operations table */
     rt_memset((void *)filesystem_operation_table, 0, sizeof(filesystem_operation_table));
@@ -61,7 +69,9 @@ void dfs_init(void)
     rt_memset(working_directory, 0, sizeof(working_directory));
     working_directory[0] = '/';
 #endif
+	return 0;
 }
+INIT_COMPONENT_EXPORT(dfs_init);
 
 /**
  * this function will lock device file system.
@@ -188,11 +198,11 @@ void fd_put(struct dfs_fd *fd)
     dfs_unlock();
 };
 
-/** 
+/**
  * @ingroup Fd
  *
  * This function will return whether this file has been opend.
- * 
+ *
  * @param pathname the file path name.
  *
  * @return 0 on file has been open successfully, -1 on open failed.
@@ -220,11 +230,15 @@ int fd_is_open(const char *pathname)
         /* get file path name under mounted file system */
         if (fs->path[0] == '/' && fs->path[1] == '\0')
             mountpath = fullpath;
-        else 
+        else
             mountpath = fullpath + strlen(fs->path);
 
         dfs_lock();
+#ifdef DFS_USING_STDIO
+        for (index = 3; index < DFS_FD_MAX+3; index++)
+#else
         for (index = 0; index < DFS_FD_MAX; index++)
+#endif
         {
             fd = &(fd_table[index]);
             if (fd->fs == RT_NULL)
@@ -271,7 +285,7 @@ const char *dfs_subdir(const char *directory, const char *filename)
     return dir;
 }
 
-/** 
+/**
  * this function will normalize a path according to specified parent directory
  * and file name.
  *
@@ -304,18 +318,24 @@ char *dfs_normalize_path(const char *directory, const char *filename)
     {
         fullpath = rt_malloc(strlen(directory) + strlen(filename) + 2);
 
+        if (fullpath == RT_NULL)
+            return RT_NULL;
+
         /* join path and file name */
-        rt_snprintf(fullpath, strlen(directory) + strlen(filename) + 2, 
+        rt_snprintf(fullpath, strlen(directory) + strlen(filename) + 2,
             "%s/%s", directory, filename);
     }
     else
     {
         fullpath = rt_strdup(filename); /* copy string */
+
+        if (fullpath == RT_NULL)
+            return RT_NULL;
     }
 
     src = fullpath;
     dst = fullpath;
-    
+
     dst0 = dst;
     while (1)
     {
@@ -374,7 +394,7 @@ up_one:
         dst --;
         if (dst < dst0)
         {
-            rt_free(fullpath); 
+            rt_free(fullpath);
             return RT_NULL;
         }
         while (dst0 < dst && dst[-1] != '/')

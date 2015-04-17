@@ -3,9 +3,19 @@
  * This file is part of RT-Thread RTOS
  * COPYRIGHT (C) 2006, RT-Thread Development Team
  *
- * The license and distribution terms for this file may be
- * found in the file LICENSE in this distribution or at
- * http://www.rt-thread.org/license/LICENSE
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Change Logs:
  * Date           Author		Notes
@@ -209,37 +219,6 @@ rt_inline rt_uint32_t fls(rt_uint32_t val)
 
 	return bit;
 }
-
-#if !defined(__GNUC__) || defined(__CC_ARM)
-rt_inline rt_uint32_t ffs(rt_uint32_t x)
-{
-        int r = 1;
-
-        if (!x)
-                return 0;
-        if (!(x & 0xffff)) {
-                x >>= 16;
-                r += 16;
-        }
-        if (!(x & 0xff)) {
-                x >>= 8;
-                r += 8;
-        }
-        if (!(x & 0xf)) {
-                x >>= 4;
-                r += 4;
-        }
-        if (!(x & 3)) {
-                x >>= 2;
-                r += 2;
-        }
-        if (!(x & 1)) {
-                x >>= 1;
-                r += 1;
-        }
-        return r;
-}
-#endif
 
 void mmcsd_host_lock(struct rt_mmcsd_host *host);
 void mmcsd_host_unlock(struct rt_mmcsd_host *host);

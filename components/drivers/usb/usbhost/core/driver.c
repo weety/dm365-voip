@@ -3,9 +3,19 @@
  * This file is part of RT-Thread RTOS
  * COPYRIGHT (C) 2011, RT-Thread Development Team
  *
- * The license and distribution terms for this file may be
- * found in the file LICENSE in this distribution or at
- * http://www.rt-thread.org/license/LICENSE
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Change Logs:
  * Date           Author       Notes
@@ -24,7 +34,7 @@ static rt_list_t _driver_list;
  * 
  * @return the error code, RT_EOK on successfully.
  */
-rt_err_t rt_usb_class_driver_init(void)
+rt_err_t rt_usbh_class_driver_init(void)
 {
     rt_list_init(&_driver_list);
 
@@ -39,7 +49,7 @@ rt_err_t rt_usb_class_driver_init(void)
  * @return the error code, RT_EOK on successfully.
  */
 
-rt_err_t rt_usb_class_driver_register(ucd_t drv)
+rt_err_t rt_usbh_class_driver_register(ucd_t drv)
 {
     if (drv == RT_NULL) return -RT_ERROR;
 
@@ -56,7 +66,7 @@ rt_err_t rt_usb_class_driver_register(ucd_t drv)
  * 
  * @return the error code, RT_EOK on successfully.
  */
-rt_err_t rt_usb_class_driver_unregister(ucd_t drv)
+rt_err_t rt_usbh_class_driver_unregister(ucd_t drv)
 {
     RT_ASSERT(drv != RT_NULL);
 
@@ -74,12 +84,12 @@ rt_err_t rt_usb_class_driver_unregister(ucd_t drv)
  * 
  * @return the error code, RT_EOK on successfully.
  */
-rt_err_t rt_usb_class_driver_run(ucd_t drv, void* args)
+rt_err_t rt_usbh_class_driver_enable(ucd_t drv, void* args)
 {
     RT_ASSERT(drv != RT_NULL);
 
-    if(drv->run != RT_NULL)
-        drv->run(args);
+    if(drv->enable != RT_NULL)
+        drv->enable(args);
 
     return RT_EOK;
 }
@@ -92,12 +102,12 @@ rt_err_t rt_usb_class_driver_run(ucd_t drv, void* args)
  * 
  * @return the error code, RT_EOK on successfully.
  */
-rt_err_t rt_usb_class_driver_stop(ucd_t drv, void* args)
+rt_err_t rt_usbh_class_driver_disable(ucd_t drv, void* args)
 {
     RT_ASSERT(drv != RT_NULL);
 
-    if(drv->stop != RT_NULL)
-        drv->stop(args);
+    if(drv->disable != RT_NULL)
+        drv->disable(args);
 
     return RT_EOK;
 }
@@ -111,7 +121,7 @@ rt_err_t rt_usb_class_driver_stop(ucd_t drv, void* args)
  *
  * @return the registered usb class driver on successful, or RT_NULL on failure.
  */
-ucd_t rt_usb_class_driver_find(int class_code, int subclass_code)
+ucd_t rt_usbh_class_driver_find(int class_code, int subclass_code)
 {
     struct rt_list_node *node;
 

@@ -3,9 +3,19 @@
  * This file is part of RT-Thread RTOS
  * COPYRIGHT (C) 2006 - 2012, RT-Thread Development Team
  *
- * The license and distribution terms for this file may be
- * found in the file LICENSE in this distribution or at
- * http://www.rt-thread.org/license/LICENSE
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Change Logs:
  * Date           Author       Notes
@@ -51,8 +61,7 @@ static void rt_thread_exit(void)
     thread->stat = RT_THREAD_CLOSE;
 
     /* remove it from timer list */
-    rt_list_remove(&(thread->thread_timer.list));
-    rt_object_detach((rt_object_t)&(thread->thread_timer));
+    rt_timer_detach(&thread->thread_timer);
 
     if ((rt_object_is_systemobject((rt_object_t)thread) == RT_TRUE) &&
         thread->cleanup == RT_NULL)
@@ -298,7 +307,7 @@ rt_thread_t rt_thread_create(const char *name,
     if (thread == RT_NULL)
         return RT_NULL;
 
-    stack_start = (void *)rt_malloc(stack_size);
+    stack_start = (void *)RT_KERNEL_MALLOC(stack_size);
     if (stack_start == RT_NULL)
     {
         /* allocate stack failure */
@@ -555,7 +564,7 @@ rt_err_t rt_thread_suspend(rt_thread_t thread)
     {
         RT_DEBUG_LOG(RT_DEBUG_THREAD, ("thread suspend: thread disorder, %d\n",
                                        thread->stat));
-        
+
         return -RT_ERROR;
     }
 
@@ -565,6 +574,9 @@ rt_err_t rt_thread_suspend(rt_thread_t thread)
     /* change thread stat */
     thread->stat = RT_THREAD_SUSPEND;
     rt_schedule_remove_thread(thread);
+
+    /* stop thread timer anyway */
+    rt_timer_stop(&(thread->thread_timer));
 
     /* enable interrupt */
     rt_hw_interrupt_enable(temp);
@@ -603,11 +615,7 @@ rt_err_t rt_thread_resume(rt_thread_t thread)
     /* remove from suspend list */
     rt_list_remove(&(thread->tlist));
 
-    /* remove thread timer */
-    rt_list_remove(&(thread->thread_timer.list));
-
-    /* change timer state */
-    thread->thread_timer.parent.flag &= ~RT_TIMER_FLAG_ACTIVATED;
+    rt_timer_stop(&thread->thread_timer);
 
     /* enable interrupt */
     rt_hw_interrupt_enable(temp);

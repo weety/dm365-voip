@@ -12,6 +12,9 @@
  * Change Logs:
  * Date           Author       Notes
  * 2012-11-23     Yihui        The first version
+ * 2013-11-24     aozima       fixed _sys_read()/_sys_write() issues.
+ * 2014-08-03     bernard      If using msh, use system() implementation
+ *                             in msh.
  */
 
 #include <string.h>
@@ -45,6 +48,11 @@ const char __stderr_name[] = "STDERR";
  */
 FILEHANDLE _sys_open(const char *name, int openmode)
 {
+#ifdef RT_USING_DFS
+    int fd;
+    int mode = O_RDONLY;
+#endif
+
     /* Register standard Input Output devices. */
     if (strcmp(name, __stdin_name) == 0)
         return (STDIN);
@@ -56,8 +64,37 @@ FILEHANDLE _sys_open(const char *name, int openmode)
 #ifndef RT_USING_DFS
     return -1;
 #else
-    /* TODO: adjust open file mode */
-    return open(name, openmode, 0);
+    /* Correct openmode from fopen to open */
+    if (openmode & OPEN_PLUS)
+    {
+        if (openmode & OPEN_W)
+        {
+            mode |= (O_RDWR | O_TRUNC | O_CREAT);
+        }
+        else if (openmode & OPEN_A)
+        {
+            mode |= (O_RDWR | O_APPEND | O_CREAT);
+        }
+        else
+            mode |= O_RDWR;
+    }
+    else
+    {
+        if (openmode & OPEN_W)
+        {
+            mode |= (O_WRONLY | O_TRUNC | O_CREAT);
+        }
+        else if (openmode & OPEN_A)
+        {
+            mode |= (O_WRONLY | O_APPEND | O_CREAT);
+        }
+    }
+
+    fd = open(name, mode, 0);
+    if (fd < 0)
+        return -1;
+    else
+        return fd + STDERR + 1;
 #endif
 }
 
@@ -66,10 +103,10 @@ int _sys_close(FILEHANDLE fh)
 #ifndef RT_USING_DFS
     return 0;
 #else
-    if (fh < 3)
+    if (fh < STDERR)
         return 0;
-    
-    return close(fh);
+
+    return close(fh - STDERR - 1);
 #endif
 }
 
@@ -80,21 +117,31 @@ int _sys_close(FILEHANDLE fh)
  * @param buf - buffer to save read data
  * @param len - max length of data buffer
  * @param mode - useless, for historical reasons
- * @return actual read data length
+ * @return The number of bytes not read.
  */
 int _sys_read(FILEHANDLE fh, unsigned char *buf, unsigned len, int mode)
 {
+#ifdef RT_USING_DFS
+    int size;
+#endif
+
     if (fh == STDIN)
     {
         /* TODO */
-        
         return 0;
     }
-    
+
+    if ((fh == STDOUT) || (fh == STDERR))
+        return -1;
+
 #ifndef RT_USING_DFS
     return 0;
 #else
-    return read(fh, buf, len);
+    size = read(fh - STDERR - 1, buf, len);
+    if (size >= 0)
+        return len - size;
+    else
+        return -1;
 #endif
 }
 
@@ -105,28 +152,39 @@ int _sys_read(FILEHANDLE fh, unsigned char *buf, unsigned len, int mode)
  * @param buf - data buffer
  * @param len - buffer length
  * @param mode - useless, for historical reasons
- * @return actual written data length
+ * @return a positive number representing the number of characters not written.
  */
 int _sys_write(FILEHANDLE fh, const unsigned char *buf, unsigned len, int mode)
 {
+#ifdef RT_USING_DFS
+    int size;
+#endif
+
     if ((fh == STDOUT) || (fh == STDERR))
     {
 #ifndef RT_USING_CONSOLE
         return 0;
 #else
         rt_device_t console_device;
-        extern rt_device_t rt_console_get_device(void);
 
         console_device = rt_console_get_device();
         if (console_device != 0) rt_device_write(console_device, 0, buf, len);
-        return len;
+
+        return 0;
 #endif
     }
-    
+
+    if (fh == STDIN)
+        return -1;
+
 #ifndef RT_USING_DFS
     return 0;
 #else
-    return write(fh, buf, len);
+    size = write(fh - STDERR - 1, buf, len);
+    if (size >= 0)
+        return len - size;
+    else
+        return -1;
 #endif
 }
 
@@ -138,11 +196,15 @@ int _sys_write(FILEHANDLE fh, const unsigned char *buf, unsigned len, int mode)
  */
 int _sys_seek(FILEHANDLE fh, long pos)
 {
+    if (fh < STDERR)
+        return -1;
+
 #ifndef RT_USING_DFS
     return -1;
 #else
+
     /* position is relative to the start of file fh */
-    return lseek(fh, pos, 0);
+    return lseek(fh - STDERR - 1, pos, 0);
 #endif
 }
 
@@ -160,9 +222,15 @@ char *_sys_command_string(char *cmd, int len)
     return cmd;
 }
 
+/* This function writes a character to the console. */
 void _ttywrch(int ch)
 {
-   /* TODO */ 
+#ifdef RT_USING_CONSOLE
+    char c;
+
+    c = (char)ch;
+    rt_kprintf(&c);
+#endif
 }
 
 void _sys_exit(int return_code)
@@ -172,7 +240,7 @@ void _sys_exit(int return_code)
 }
 
 /**
- * return current length of file. 
+ * return current length of file.
  *
  * @param fh - file handle
  * @return file length, or -1 on failed
@@ -187,7 +255,6 @@ int _sys_istty(FILEHANDLE fh)
     return 0;
 }
 
-
 int remove(const char *filename)
 {
 #ifndef RT_USING_DFS
@@ -197,18 +264,12 @@ int remove(const char *filename)
 #endif
 }
 
-/* rename() is defined in dfs_posix.c instead */
-#if 0
-int rename(const char *old, const char *new)
-{
-    return -1;
-}
-#endif
-
+#if defined(RT_USING_FINSH) && defined(FINSH_USING_MSH) && defined(RT_USING_MODULE) && defined(RT_USING_DFS)
+/* use system(const char *string) implementation in the msh */
+#else
 int system(const char *string)
 {
     RT_ASSERT(0);
-    for(;;);	
+    for (;;);
 }
-
-
+#endif

@@ -178,6 +178,7 @@ static int dfs_jffs2_mount(struct dfs_filesystem* fs,
 	result = jffs2_mount(NULL, mte);
 	if (result != 0)
 	{	
+		device_partition[index].dev = NULL;
 		return jffs2_result_to_dfs(result);
 	}
 	/* save this pointer */
@@ -726,3 +727,5 @@ int dfs_jffs2_init(void)
 	rt_kprintf("init jffs2 lock mutex okay\n");
 	return 0;
 }
+INIT_FS_EXPORT(dfs_jffs2_init);
+

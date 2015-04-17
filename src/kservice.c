@@ -3,9 +3,19 @@
  * This file is part of RT-Thread RTOS
  * COPYRIGHT (C) 2006 - 2012, RT-Thread Development Team
  *
- * The license and distribution terms for this file may be
- * found in the file LICENSE in this distribution or at
- * http://www.rt-thread.org/license/LICENSE
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Change Logs:
  * Date           Author       Notes
@@ -16,8 +26,10 @@
  *                             fix gcc compiling issue.
  * 2010-04-15     Bernard      remove weak definition on ICCM16C compiler
  * 2012-07-18     Arda         add the alignment display for signed integer
- * 2012-11-23     Bernard      fix IAR compiler error. 
+ * 2012-11-23     Bernard      fix IAR compiler error.
  * 2012-12-22     Bernard      fix rt_kprintf issue, which found by Grissiom.
+ * 2013-06-24     Bernard      remove rt_kprintf if RT_USING_CONSOLE is not defined.
+ * 2013-09-24     aozima       make sure the device is in STREAM mode when used by rt_kprintf.
  */
 
 #include <rtthread.h>
@@ -83,7 +95,7 @@ void rt_set_errno(rt_err_t error)
     if (tid == RT_NULL)
     {
         _errno = error;
-        
+
         return;
     }
 
@@ -99,7 +111,7 @@ RTM_EXPORT(rt_set_errno);
 int *_rt_errno(void)
 {
     rt_thread_t tid;
-    
+
     if (rt_interrupt_get_nest() != 0)
         return (int *)&_errno;
 
@@ -501,7 +513,7 @@ void rt_show_version(void)
     rt_kprintf("- RT -     Thread Operating System\n");
     rt_kprintf(" / | \\     %d.%d.%d build %s\n",
                RT_VERSION, RT_SUBVERSION, RT_REVISION, __DATE__);
-    rt_kprintf(" 2006 - 2012 Copyright by rt-thread team\n");
+    rt_kprintf(" 2006 - 2015 Copyright by rt-thread team\n");
 }
 RTM_EXPORT(rt_show_version);
 
@@ -707,10 +719,10 @@ static char *print_number(char *buf,
     return buf;
 }
 
-static rt_int32_t vsnprintf(char       *buf,
-                            rt_size_t   size,
-                            const char *fmt,
-                            va_list     args)
+rt_int32_t rt_vsnprintf(char       *buf,
+                        rt_size_t   size,
+                        const char *fmt,
+                        va_list     args)
 {
 #ifdef RT_PRINTF_LONGLONG
     unsigned long long num;
@@ -965,6 +977,7 @@ static rt_int32_t vsnprintf(char       *buf,
     */
     return str - buf;
 }
+RTM_EXPORT(rt_vsnprintf);
 
 /**
  * This function will fill a formatted string to buffer
@@ -979,7 +992,7 @@ rt_int32_t rt_snprintf(char *buf, rt_size_t size, const char *fmt, ...)
     va_list args;
 
     va_start(args, fmt);
-    n = vsnprintf(buf, size, fmt, args);
+    n = rt_vsnprintf(buf, size, fmt, args);
     va_end(args);
 
     return n;
@@ -995,7 +1008,7 @@ RTM_EXPORT(rt_snprintf);
  */
 rt_int32_t rt_vsprintf(char *buf, const char *format, va_list arg_ptr)
 {
-    return vsnprintf(buf, (rt_size_t) -1, format, arg_ptr);
+    return rt_vsnprintf(buf, (rt_size_t) -1, format, arg_ptr);
 }
 RTM_EXPORT(rt_vsprintf);
 
@@ -1060,7 +1073,7 @@ rt_device_t rt_console_set_device(const char *name)
 
         /* set new console device */
         _console_device = new;
-        rt_device_open(_console_device, RT_DEVICE_OFLAG_RDWR);
+        rt_device_open(_console_device, RT_DEVICE_OFLAG_RDWR | RT_DEVICE_FLAG_STREAM);
     }
 
     return old;
@@ -1068,19 +1081,7 @@ rt_device_t rt_console_set_device(const char *name)
 RTM_EXPORT(rt_console_set_device);
 #endif
 
-#if defined(__GNUC__) || defined(__ADSPBLACKFIN__)
-void rt_hw_console_output(const char *str) __attribute__((weak));
-void rt_hw_console_output(const char *str)
-#elif defined(__CC_ARM)
-__weak void rt_hw_console_output(const char *str)
-#elif defined(__IAR_SYSTEMS_ICC__)
-    #if __VER__ > 540
-    __weak
-    #endif
-void rt_hw_console_output(const char *str)
-#else
-void rt_hw_console_output(const char *str)
-#endif
+WEAK void rt_hw_console_output(const char *str)
 {
     /* empty console output */
 }
@@ -1103,7 +1104,7 @@ void rt_kprintf(const char *fmt, ...)
      * large excluding the terminating null byte. If the output string
      * would be larger than the rt_log_buf, we have to adjust the output
      * length. */
-    length = vsnprintf(rt_log_buf, sizeof(rt_log_buf) - 1, fmt, args);
+    length = rt_vsnprintf(rt_log_buf, sizeof(rt_log_buf) - 1, fmt, args);
     if (length > RT_CONSOLEBUF_SIZE - 1)
         length = RT_CONSOLEBUF_SIZE - 1;
 #ifdef RT_USING_DEVICE
@@ -1113,7 +1114,11 @@ void rt_kprintf(const char *fmt, ...)
     }
     else
     {
+        rt_uint16_t old_flag = _console_device->open_flag;
+
+        _console_device->open_flag |= RT_DEVICE_FLAG_STREAM;
         rt_device_write(_console_device, 0, rt_log_buf, length);
+        _console_device->open_flag = old_flag;
     }
 #else
     rt_hw_console_output(rt_log_buf);
@@ -1121,12 +1126,6 @@ void rt_kprintf(const char *fmt, ...)
     va_end(args);
 }
 RTM_EXPORT(rt_kprintf);
-#else
-void rt_kprintf(const char *fmt, ...)
-{
-}
-RTM_EXPORT(rt_kprintf);
-
 #endif
 
 #ifdef RT_USING_HEAP
@@ -1212,13 +1211,13 @@ const rt_uint8_t __lowest_bit_bitmap[] =
 };
 
 /**
- * This function finds the first bit set (beginning with the least significant bit) 
+ * This function finds the first bit set (beginning with the least significant bit)
  * in value and return the index of that bit.
  *
- * Bits are numbered starting at 1 (the least significant bit).  A return value of 
+ * Bits are numbered starting at 1 (the least significant bit).  A return value of
  * zero from any of these functions means that the argument was zero.
- * 
- * @return return the index of the first bit set. If value is 0, then this function 
+ *
+ * @return return the index of the first bit set. If value is 0, then this function
  * shall return 0.
  */
 int __rt_ffs(int value)
@@ -1230,10 +1229,10 @@ int __rt_ffs(int value)
 
     if (value & 0xff00)
         return __lowest_bit_bitmap[(value & 0xff00) >> 8] + 9;
-    
+
     if (value & 0xff0000)
         return __lowest_bit_bitmap[(value & 0xff0000) >> 16] + 17;
-    
+
     return __lowest_bit_bitmap[(value & 0xff000000) >> 24] + 25;
 }
 #endif

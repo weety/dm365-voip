@@ -1,11 +1,26 @@
 /*
- * File      : finsh_vm.c
- * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2006 - 2010, RT-Thread Development Team
+ *  Virtual machine of finsh shell.
  *
- * The license and distribution terms for this file may be
- * found in the file LICENSE in this distribution or at
- * http://www.rt-thread.org/license/LICENSE
+ * COPYRIGHT (C) 2006 - 2013, RT-Thread Development Team
+ *
+ *  This file is part of RT-Thread (http://www.rt-thread.org)
+ *  Maintainer: bernard.xiong <bernard.xiong at gmail.com>
+ *
+ *  All rights reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Change Logs:
  * Date           Author       Notes
@@ -28,13 +43,13 @@ u_char*				finsh_pc;		/* PC */
 /* syscall list, for dynamic system call register */
 struct finsh_syscall_item* global_syscall_list = NULL;
 
-// #define VM_DISASSEMBLE
+// #define FINSH_VM_DISASSEMBLE
 void finsh_vm_run()
 {
 	u_char op;
 
-	/* if want to disassemble the bytecode, please define VM_DISASSEMBLE */
-#ifdef VM_DISASSEMBLE
+	/* if you want to disassemble the byte code, please define FINSH_VM_DISASSEMBLE */
+#ifdef FINSH_VM_DISASSEMBLE
 	void finsh_disassemble();
 	finsh_disassemble();
 #endif
@@ -57,7 +72,6 @@ void finsh_vm_run()
 }
 
 #ifdef RT_USING_HEAP
-extern char *strdup(const char *s);
 void finsh_syscall_append(const char* name, syscall_func func)
 {
 	/* create the syscall */
@@ -67,7 +81,7 @@ void finsh_syscall_append(const char* name, syscall_func func)
 	if (item != RT_NULL)
 	{
 		item->next = NULL;
-		item->syscall.name = strdup(name);
+		item->syscall.name = rt_strdup(name);
 		item->syscall.func = func;
 
 		if (global_syscall_list == NULL)
@@ -131,7 +145,7 @@ struct finsh_syscall* finsh_syscall_lookup(const char* name)
 	return NULL;
 }
 
-#ifdef VM_DISASSEMBLE
+#ifdef FINSH_VM_DISASSEMBLE
 void finsh_disassemble()
 {
 	u_char *pc, op;

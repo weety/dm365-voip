@@ -3,9 +3,19 @@
  * This file is part of RT-Thread RTOS
  * COPYRIGHT (C) 2006 - 2012, RT-Thread Development Team
  *
- * The license and distribution terms for this file may be
- * found in the file LICENSE in this distribution or at
- * http://www.rt-thread.org/license/LICENSE
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Change Logs:
  * Date           Author       Notes
@@ -15,13 +25,15 @@
  * 2007-01-28     Bernard      rename RT_OBJECT_Class_Static to RT_Object_Class_Static
  * 2007-03-03     Bernard      clean up the definitions to rtdef.h
  * 2010-04-11     yi.qiu       add module feature
+ * 2013-06-24     Bernard      add rt_kprintf re-define when not use RT_USING_CONSOLE.
  */
 
 #ifndef __RT_THREAD_H__
 #define __RT_THREAD_H__
 
-#include <rtdef.h>
+#include <rtconfig.h>
 #include <rtdebug.h>
+#include <rtdef.h>
 #include <rtservice.h>
 #include <rtm.h>
 
@@ -162,6 +174,7 @@ void rt_schedule_remove_thread(struct rt_thread *thread);
 
 void rt_enter_critical(void);
 void rt_exit_critical(void);
+rt_uint16_t rt_critical_level(void);
 
 #ifdef RT_USING_HOOK
 void rt_scheduler_sethook(void (*hook)(rt_thread_t from, rt_thread_t to));
@@ -242,6 +255,7 @@ rt_err_t rt_memheap_init(struct rt_memheap *memheap,
                          rt_uint32_t        size);
 rt_err_t rt_memheap_detach(struct rt_memheap *heap);
 void* rt_memheap_alloc(struct rt_memheap *heap, rt_uint32_t size);
+void *rt_memheap_realloc(struct rt_memheap* heap, void* ptr, rt_size_t newsize);
 void rt_memheap_free(void *ptr);
 #endif
 
@@ -407,6 +421,7 @@ rt_module_t rt_module_load(const char *name, void *module_ptr);
 rt_err_t rt_module_unload(rt_module_t module);
 #ifdef RT_USING_DFS
 rt_module_t rt_module_open(const char *filename);
+rt_module_t rt_module_exec_cmd(const char *path, const char* cmd_line, int size);
 #endif
 void *rt_module_malloc(rt_size_t size);
 void *rt_module_realloc(void *ptr, rt_size_t size);
@@ -419,21 +434,20 @@ void rt_module_load_sethook(void (*hook)(rt_module_t module));
 void rt_module_unload_sethook(void (*hook)(rt_module_t module));
 #endif
 
+void rt_module_init_object_container(struct rt_module *module);
+rt_err_t rt_module_destroy(rt_module_t module);
+
+/*
+ * application module system initialization
+ */
+int rt_system_module_init(void);
+
 /*@}*/
 #endif
- 
+
 /*
  * interrupt service
  */
-typedef void (*rt_isr_handler_t)(int vector, void *param);
-
-struct rt_irq_desc {
-	char irq_name[RT_NAME_MAX];
-	rt_isr_handler_t isr_handle;
-	void *param;
-	rt_uint32_t interrupt_cnt;
-};
-
 
 /*
  * rt_interrupt_enter and rt_interrupt_leave only can be called by BSP
@@ -446,10 +460,10 @@ void rt_interrupt_leave(void);
  */
 rt_uint8_t rt_interrupt_get_nest(void);
 
-/**
- * application module
- */
-void rt_system_module_init(void);
+#ifdef RT_USING_COMPONENTS_INIT
+void rt_components_init(void);
+void rt_components_board_init(void);
+#endif
 
 /**
  * @addtogroup KernelService
@@ -460,8 +474,13 @@ void rt_system_module_init(void);
 /*
  * general kernel service
  */
+#ifndef RT_USING_CONSOLE
+#define rt_kprintf(...)
+#else
 void rt_kprintf(const char *fmt, ...);
+#endif
 rt_int32_t rt_vsprintf(char *dest, const char *format, va_list arg_ptr);
+rt_int32_t rt_vsnprintf(char *buf, rt_size_t size, const char *fmt, va_list args);
 rt_int32_t rt_sprintf(char *buf ,const char *format, ...);
 rt_int32_t rt_snprintf(char *buf, rt_size_t size, const char *format, ...);
 

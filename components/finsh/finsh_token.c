@@ -1,21 +1,39 @@
 /*
- * File      : finsh_token.c
- * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2006 - 2010, RT-Thread Development Team
+ *  token lex for finsh shell.
  *
- * The license and distribution terms for this file may be
- * found in the file LICENSE in this distribution or at
- * http://www.rt-thread.org/license/LICENSE
+ * COPYRIGHT (C) 2006 - 2013, RT-Thread Development Team
+ *
+ *  This file is part of RT-Thread (http://www.rt-thread.org)
+ *  Maintainer: bernard.xiong <bernard.xiong at gmail.com>
+ *
+ *  All rights reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Change Logs:
  * Date           Author       Notes
  * 2010-03-22     Bernard      first version
+ * 2013-04-03     Bernard      strip more characters.
  */
 #include <finsh.h>
+#include <stdlib.h>
 
 #include "finsh_token.h"
 #include "finsh_error.h"
 
+#define is_alpha(ch)	((ch | 0x20) - 'a') < 26u
 #define is_digit(ch)	((ch) >= '0' && (ch) <= '9')
 #define is_separator(ch) !(((ch) >= 'a' && (ch) <= 'z') \
      || ((ch) >= 'A' && (ch) <= 'Z') || ((ch) >= '0' && (ch) <= '9') || ((ch) == '_'))
@@ -146,7 +164,6 @@ static void token_run(struct finsh_token* self)
 		{
 			self->current_token = finsh_token_type_identifier;
 		}
-		return;
 	}
 	else/*It is a operator character.*/
 	{
@@ -313,7 +330,9 @@ static int token_match_name(struct finsh_token* self, const char* str)
 static void token_trim_space(struct finsh_token* self)
 {
 	char ch;
-	while ( (ch = token_next_char(self)) ==' ' || ch == '\t');
+	while ( (ch = token_next_char(self)) ==' ' || 
+        ch == '\t' || 
+        ch == '\r');
 
 	token_prev_char(self);
 }
@@ -454,23 +473,22 @@ static int token_proc_escape(struct finsh_token* self)
 static void token_proc_number(struct finsh_token* self)
 {
 	char ch;
-	int b;
 	char *p, buf[128];
 	long value;
 
 	value = 0;
 	p = buf;
-	b = 10;
 
 	ch  = token_next_char(self);
 	if ( ch == '0' )
 	{
+		int b;
 		ch = token_next_char(self);
 		if ( ch == 'x' || ch == 'X' )/*it's a hex number*/
 		{
 			b = 16;
 			ch = token_next_char(self);
-			while ( is_digit(ch) || isalpha(ch) )
+			while ( is_digit(ch) || is_alpha(ch) )
 			{
 				*p++ = ch;
 				ch = token_next_char(self);
@@ -490,16 +508,25 @@ static void token_proc_number(struct finsh_token* self)
 
 			*p = '\0';
 		}
-		else
+		else if ( '0' <= ch && ch <= '7' )
 		{
 			b = 8;
-			while ( is_digit(ch) )
+			while ( '0' <= ch && ch <= '7' )
 			{
 				*p++ = ch;
 				ch = token_next_char(self);
 			}
 
 			*p = '\0';
+		}
+		else
+		{
+			token_prev_char(self);
+
+			/* made as 0 value */
+			self->value.int_value = 0;
+			self->current_token = finsh_token_type_value_int;
+			return;
 		}
 
 		self->value.int_value = token_spec_number(buf, strlen(buf), b);

@@ -3,9 +3,19 @@
  * This file is part of RT-Thread RTOS
  * COPYRIGHT (C) 2006 - 2012, RT-Thread Development Team
  *
- * The license and distribution terms for this file may be
- * found in the file LICENSE in this distribution or at
- * http://www.rt-thread.org/license/LICENSE
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Change Logs:
  * Date           Author       Notes
@@ -35,6 +45,7 @@
  * 2010-10-26     yi.qiu       add module support in rt_mp_delete and rt_mq_delete
  * 2010-11-10     Bernard      add IPC reset command implementation.
  * 2011-12-18     Bernard      add more parameter checking in message queue
+ * 2013-09-14     Grissiom     add an option check in rt_event_recv
  */
 
 #include <rtthread.h>
@@ -351,7 +362,7 @@ rt_err_t rt_sem_take(rt_sem_t sem, rt_int32_t time)
         else
         {
             /* current context checking */
-            RT_DEBUG_NOT_IN_INTERRUPT;
+            RT_DEBUG_IN_THREAD_CONTEXT;
 
             /* semaphore is unavailable, push to suspend list */
             /* get current thread */
@@ -634,7 +645,7 @@ rt_err_t rt_mutex_take(rt_mutex_t mutex, rt_int32_t time)
     struct rt_thread *thread;
 
     /* this function must not be used in interrupt even if time = 0 */
-    RT_DEBUG_NOT_IN_INTERRUPT;
+    RT_DEBUG_IN_THREAD_CONTEXT;
 
     RT_ASSERT(mutex != RT_NULL);
 
@@ -765,6 +776,9 @@ rt_err_t rt_mutex_release(rt_mutex_t mutex)
     rt_bool_t need_schedule;
 
     need_schedule = RT_FALSE;
+
+    /* only thread could release mutex because we need test the ownership */
+    RT_DEBUG_IN_THREAD_CONTEXT;
 
     /* get current thread */
     thread = rt_thread_self();
@@ -1069,7 +1083,8 @@ RTM_EXPORT(rt_event_send);
  *
  * @param event the fast event object
  * @param set the interested event set
- * @param option the receive option
+ * @param option the receive option, either RT_EVENT_FLAG_AND or
+ *        RT_EVENT_FLAG_OR should be set.
  * @param timeout the waiting time
  * @param recved the received event
  *
@@ -1085,7 +1100,7 @@ rt_err_t rt_event_recv(rt_event_t   event,
     register rt_ubase_t level;
     register rt_base_t status;
 
-    RT_DEBUG_NOT_IN_INTERRUPT;
+    RT_DEBUG_IN_THREAD_CONTEXT;
 
     /* parameter check */
     RT_ASSERT(event != RT_NULL);
@@ -1114,6 +1129,11 @@ rt_err_t rt_event_recv(rt_event_t   event,
     {
         if (event->set & set)
             status = RT_EOK;
+    }
+    else
+    {
+        /* either RT_EVENT_FLAG_AND or RT_EVENT_FLAG_OR should be set */
+        RT_ASSERT(0);
     }
 
     if (status == RT_EOK)
@@ -1214,7 +1234,7 @@ rt_err_t rt_event_control(rt_event_t event, rt_uint8_t cmd, void *arg)
 
     return -RT_ERROR;
 }
-RTM_EXPORT(rt_event_control); 
+RTM_EXPORT(rt_event_control);
 #endif /* end of RT_USING_EVENT */
 
 #ifdef RT_USING_MAILBOX
@@ -1314,7 +1334,7 @@ rt_mailbox_t rt_mb_create(const char *name, rt_size_t size, rt_uint8_t flag)
 
     /* init mailbox */
     mb->size     = size;
-    mb->msg_pool = rt_malloc(mb->size * sizeof(rt_uint32_t));
+    mb->msg_pool = RT_KERNEL_MALLOC(mb->size * sizeof(rt_uint32_t));
     if (mb->msg_pool == RT_NULL)
     {
         /* delete mailbox object */
@@ -1361,7 +1381,7 @@ rt_err_t rt_mb_delete(rt_mailbox_t mb)
 #endif
 
     /* free mailbox pool */
-    rt_free(mb->msg_pool);
+    RT_KERNEL_FREE(mb->msg_pool);
 
     /* delete mailbox object */
     rt_object_delete(&(mb->parent.parent));
@@ -1425,7 +1445,7 @@ rt_err_t rt_mb_send_wait(rt_mailbox_t mb,
             return -RT_EFULL;
         }
 
-        RT_DEBUG_NOT_IN_INTERRUPT;
+        RT_DEBUG_IN_THREAD_CONTEXT;
         /* suspend current thread */
         rt_ipc_list_suspend(&(mb->suspend_sender_thread),
                             thread,
@@ -1568,11 +1588,11 @@ rt_err_t rt_mb_recv(rt_mailbox_t mb, rt_uint32_t *value, rt_int32_t timeout)
             rt_hw_interrupt_enable(temp);
 
             thread->error = -RT_ETIMEOUT;
-            
+
             return -RT_ETIMEOUT;
         }
 
-        RT_DEBUG_NOT_IN_INTERRUPT;
+        RT_DEBUG_IN_THREAD_CONTEXT;
         /* suspend current thread */
         rt_ipc_list_suspend(&(mb->parent.suspend_thread),
                             thread,
@@ -1693,7 +1713,7 @@ rt_err_t rt_mb_control(rt_mailbox_t mb, rt_uint8_t cmd, void *arg)
 
     return -RT_ERROR;
 }
-RTM_EXPORT(rt_mb_control); 
+RTM_EXPORT(rt_mb_control);
 #endif /* end of RT_USING_MAILBOX */
 
 #ifdef RT_USING_MESSAGEQUEUE
@@ -1827,7 +1847,7 @@ rt_mq_t rt_mq_create(const char *name,
     mq->max_msgs = max_msgs;
 
     /* allocate message pool */
-    mq->msg_pool = rt_malloc((mq->msg_size + sizeof(struct rt_mq_message))* mq->max_msgs);
+    mq->msg_pool = RT_KERNEL_MALLOC((mq->msg_size + sizeof(struct rt_mq_message))* mq->max_msgs);
     if (mq->msg_pool == RT_NULL)
     {
         rt_mq_delete(mq);
@@ -1881,7 +1901,7 @@ rt_err_t rt_mq_delete(rt_mq_t mq)
 #endif
 
     /* free message queue pool */
-    rt_free(mq->msg_pool);
+    RT_KERNEL_FREE(mq->msg_pool);
 
     /* delete message queue object */
     rt_object_delete(&(mq->parent.parent));
@@ -2106,7 +2126,7 @@ rt_err_t rt_mq_recv(rt_mq_t    mq,
     /* message queue is empty */
     while (mq->entry == 0)
     {
-        RT_DEBUG_NOT_IN_INTERRUPT;
+        RT_DEBUG_IN_THREAD_CONTEXT;
 
         /* reset error number in thread */
         thread->error = RT_EOK;
@@ -2199,7 +2219,7 @@ rt_err_t rt_mq_recv(rt_mq_t    mq,
 
     return RT_EOK;
 }
-RTM_EXPORT(rt_mq_recv);  
+RTM_EXPORT(rt_mq_recv);
 
 /**
  * This function can get or set some extra attributions of a message queue

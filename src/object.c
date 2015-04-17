@@ -3,9 +3,19 @@
  * This file is part of RT-Thread RTOS
  * COPYRIGHT (C) 2006 - 2012, RT-Thread Development Team
  *
- * The license and distribution terms for this file may be
- * found in the file LICENSE in this distribution or at
- * http://www.rt-thread.org/license/LICENSE
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Change Logs:
  * Date           Author       Notes
@@ -172,7 +182,7 @@ void rt_system_object_init(void)
 
 /**
  * This function will return the specified type of object information.
- * 
+ *
  * @param type the type of object
  * @return the object type information or RT_NULL
  */
@@ -200,7 +210,7 @@ void rt_object_init(struct rt_object         *object,
 
 #ifdef RT_USING_MODULE
     /* get module object information */
-    information = (rt_module_self() != RT_NULL) ? 
+    information = (rt_module_self() != RT_NULL) ?
         &rt_module_self()->module_object[type] : &rt_object_container[type];
 #else
     /* get object information */
@@ -281,13 +291,13 @@ rt_object_t rt_object_allocate(enum rt_object_class_type type, const char *name)
     information = &rt_object_container[type];
 #endif
 
-    object = (struct rt_object *)rt_malloc(information->object_size);
+    object = (struct rt_object *)RT_KERNEL_MALLOC(information->object_size);
     if (object == RT_NULL)
     {
         /* no memory can be allocated */
         return RT_NULL;
     }
-    
+
     /* initialize object's parameters */
 
     /* set object type */
@@ -347,13 +357,13 @@ void rt_object_delete(rt_object_t object)
     rt_hw_interrupt_enable(temp);
 
 #if defined(RT_USING_MODULE) && defined(RT_USING_SLAB)
-    if (object->flag & RT_OBJECT_FLAG_MODULE) 
+    if (object->flag & RT_OBJECT_FLAG_MODULE)
         rt_module_free((rt_module_t)object->module_id, object);
     else
 #endif
 
     /* free the memory of object */
-    rt_free(object);
+    RT_KERNEL_FREE(object);
 }
 #endif
 
@@ -393,22 +403,77 @@ rt_object_t rt_object_find(const char *name, rt_uint8_t type)
 {
     struct rt_object *object;
     struct rt_list_node *node;
-    struct rt_object_information *information;
-    extern volatile rt_uint8_t rt_interrupt_nest;
+    struct rt_object_information *information = RT_NULL;
 
     /* parameter check */
     if ((name == RT_NULL) || (type > RT_Object_Class_Unknown))
         return RT_NULL;
 
     /* which is invoke in interrupt status */
-    if (rt_interrupt_nest != 0)
-        RT_ASSERT(0);
+    RT_DEBUG_NOT_IN_INTERRUPT;
+
+#ifdef RT_USING_MODULE
+    /* check whether to find a object inside a module. */
+    {
+        const char *name_ptr;
+        int module_name_length;
+
+        name_ptr = name;
+        while ((*name_ptr != '\0') && (*name_ptr != '/'))
+            name_ptr ++;
+
+        if (*name_ptr == '/')
+        {
+            struct rt_module* module = RT_NULL;
+
+            /* get the name length of module */
+            module_name_length = name_ptr - name;
+
+            /* enter critical */
+            rt_enter_critical();
+
+            /* find module */
+            information = &rt_object_container[RT_Object_Class_Module];
+            for (node = information->object_list.next;
+                node != &(information->object_list);
+                node  = node->next)
+            {
+                object = rt_list_entry(node, struct rt_object, list);
+                if ((rt_strncmp(object->name, name, module_name_length) == 0) &&
+                    (module_name_length == RT_NAME_MAX || object->name[module_name_length] == '\0'))
+                {
+                    /* get module */
+                    module = (struct rt_module*)object;
+                    break;
+                }
+            }
+            rt_exit_critical();
+
+            /* there is no this module inside the system */
+            if (module == RT_NULL) return RT_NULL;
+
+            /* get the object pool of module */
+            information = &(module->module_object[type]);
+
+            /* get object name */
+            while ((*name_ptr == '/') && (*name_ptr != '\0')) name_ptr ++;
+            if (*name_ptr == '\0')
+            {
+                if (type == RT_Object_Class_Module) return object;
+                return RT_NULL;
+            }
+
+            /* point to the object name */
+            name = name_ptr;
+        }
+    }
+#endif
 
     /* enter critical */
     rt_enter_critical();
 
     /* try to find object */
-    information = &rt_object_container[type];
+    if (information == RT_NULL) information = &rt_object_container[type];
     for (node  = information->object_list.next;
          node != &(information->object_list);
          node  = node->next)

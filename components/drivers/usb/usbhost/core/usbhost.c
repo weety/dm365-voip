@@ -3,9 +3,19 @@
  * This file is part of RT-Thread RTOS
  * COPYRIGHT (C) 2011, RT-Thread Development Team
  *
- * The license and distribution terms for this file may be
- * found in the file LICENSE in this distribution or at
- * http://www.rt-thread.org/license/LICENSE
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Change Logs:
  * Date           Author       Notes
@@ -14,7 +24,9 @@
 #include <rtthread.h>
 #include <drivers/usb_host.h>
 
-#if defined(RT_USB_HID_KEYBOARD) || defined(RT_USB_HID_MOUSE)
+#define USB_HOST_CONTROLLER_NAME      "usbh"
+
+#if defined(RT_USBH_HID_KEYBOARD) || defined(RT_USBH_HID_MOUSE)
 #include <hid.h>
 #endif
 
@@ -24,51 +36,64 @@
  * 
  * @return none.
  */
-void rt_usb_host_init(void)
+rt_err_t rt_usb_host_init(void)
 {
     ucd_t drv;
-#ifdef RT_USB_CLASS_HID
+    rt_device_t uhc;    
+#ifdef RT_USBH_HID
     uprotocal_t protocal;
 #endif
 
-    /* initialize usb hub thread */
-    rt_usb_hub_thread();
+    uhc = rt_device_find(USB_HOST_CONTROLLER_NAME);
+    if(uhc == RT_NULL)
+    {
+        rt_kprintf("can't find usb host controller %s\n", USB_HOST_CONTROLLER_NAME);
+        return -RT_ERROR;
+    }
+
+    /* initialize usb hub */
+    rt_usbh_hub_init();
 
     /* initialize class driver */
-    rt_usb_class_driver_init();
+    rt_usbh_class_driver_init();
 
-#ifdef RT_USB_CLASS_MASS_STORAGE
+#ifdef RT_USBH_MSTORAGE
     /* register mass storage class driver */
-    drv = rt_usb_class_driver_storage();
-    rt_usb_class_driver_register(drv);
+    drv = rt_usbh_class_driver_storage();
+    rt_usbh_class_driver_register(drv);
 #endif
 
-#ifdef RT_USB_CLASS_HID
+#ifdef RT_USBH_HID
     /* register hid class driver */
-    drv = rt_usb_class_driver_hid();
-    rt_usb_class_driver_register(drv);
+    drv = rt_usbh_class_driver_hid();
+    rt_usbh_class_driver_register(drv);
 
-#ifdef RT_USB_HID_KEYBOARD    
+#ifdef RT_USBH_HID_KEYBOARD    
     /* register hid keyboard protocal */
-    protocal = rt_usb_hid_protocal_kbd();    
-    rt_usb_hid_protocal_register(protocal);
+    protocal = rt_usbh_hid_protocal_kbd();    
+    rt_usbh_hid_protocal_register(protocal);
 #endif
 
-#ifdef RT_USB_HID_MOUSE    
+#ifdef RT_USBH_HID_MOUSE    
     /* register hid mouse protocal */
-    protocal = rt_usb_hid_protocal_mouse();    
-    rt_usb_hid_protocal_register(protocal);
+    protocal = rt_usbh_hid_protocal_mouse();    
+    rt_usbh_hid_protocal_register(protocal);
 #endif    
 #endif
 
-#ifdef RT_USB_CLASS_ADK
+#ifdef RT_USBH_ADK
     /* register adk class driver */
-    drv = rt_usb_class_driver_adk();
-    rt_usb_class_driver_register(drv);
+    drv = rt_usbh_class_driver_adk();
+    rt_usbh_class_driver_register(drv);
 #endif
 
     /* register hub class driver */
-    drv = rt_usb_class_driver_hub();
-    rt_usb_class_driver_register(drv);
+    drv = rt_usbh_class_driver_hub();
+    rt_usbh_class_driver_register(drv);
+
+    /* initialize usb host controller */
+    rt_device_init(uhc);
+
+    return RT_EOK;
 }
 

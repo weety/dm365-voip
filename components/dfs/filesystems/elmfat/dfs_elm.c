@@ -3,9 +3,19 @@
  * This file is part of Device File System in RT-Thread RTOS
  * COPYRIGHT (C) 2008-2011, RT-Thread Development Team
  *
- * The license and distribution terms for this file may be
- * found in the file LICENSE in this distribution or at
- * http://www.rt-thread.org/license/LICENSE.
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Change Logs:
  * Date           Author       Notes
@@ -15,6 +25,7 @@
  * 2012-07-26     aozima       implement ff_memalloc and ff_memfree.
  * 2012-12-19     Bernard      fixed the O_APPEND and lseek issue.
  * 2013-03-01     aozima       fixed the stat(st_mtime) issue.
+ * 2014-01-26     Bernard      Check the sector size before mount.
  */
 
 #include <rtthread.h>
@@ -100,20 +111,30 @@ int dfs_elm_mount(struct dfs_filesystem *fs, unsigned long rwflag, const void *d
     FATFS *fat;
     FRESULT result;
     int index;
+	struct rt_device_blk_geometry geometry;
 
     /* get an empty position */
     index = get_disk(RT_NULL);
     if (index == -1)
-        return -DFS_STATUS_ENOSPC;
+        return -DFS_STATUS_ENOENT;
 
     /* save device */
     disk[index] = fs->dev_id;
-
+	/* check sector size */
+	if (rt_device_control(fs->dev_id, RT_DEVICE_CTRL_BLK_GETGEOME, &geometry) == RT_EOK)
+	{
+		if (geometry.bytes_per_sector > _MAX_SS) 
+		{
+			rt_kprintf("The sector size of device is greater than the sector size of FAT.\n");
+			return -DFS_STATUS_EINVAL;
+		}
+	}
+	
     fat = (FATFS *)rt_malloc(sizeof(FATFS));
     if (fat == RT_NULL)
     {
         disk[index] = RT_NULL;
-        return -1;
+        return -DFS_STATUS_ENOMEM;
     }
 
     /* mount fatfs, always 0 logic driver */
@@ -214,6 +235,8 @@ int dfs_elm_mkfs(rt_device_t dev_id)
             flag = FSM_STATUS_USE_TEMP_DRIVER;
 
             disk[index] = dev_id;
+            /* try to open device */
+            rt_device_open(dev_id, RT_DEVICE_OFLAG_RDWR);
 
             /* just fill the FatFs[vol] in ff.c, or mkfs will failded!
              * consider this condition: you just umount the elm fat,
@@ -235,6 +258,8 @@ int dfs_elm_mkfs(rt_device_t dev_id)
         rt_free(fat);
         f_mount((BYTE)index, RT_NULL);
         disk[index] = RT_NULL;
+        /* close device */
+        rt_device_close(dev_id);
     }
 
     if (result != FR_OK)
@@ -783,6 +808,7 @@ int elm_init(void)
 
     return 0;
 }
+INIT_FS_EXPORT(elm_init);
 
 /*
  * RT-Thread Device Interface for ELM FatFs

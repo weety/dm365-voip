@@ -3,13 +3,24 @@
  * This file is part of RT-Thread RTOS
  * COPYRIGHT (C) 2006 - 2012, RT-Thread Development Team
  *
- * The license and distribution terms for this file may be
- * found in the file LICENSE in this distribution or at
- * http://www.rt-thread.org/license/LICENSE
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Change Logs:
  * Date           Author       Notes
  * 2012-01-08     bernard      first version.
+ * 2014-07-12     bernard      Add workqueue implementation.
  */
 
 #ifndef __RT_DEVICE_H__
@@ -28,18 +39,65 @@ struct rt_completion
     rt_list_t suspended_list;
 };
 
-#define RT_RINGBUFFER_SIZE(rb)       ((rb)->write_index - (rb)->read_index)
-#define RT_RINGBUFFER_EMPTY(rb)      ((rb)->buffer_size - RT_RINGBUFFER_SIZE(rb))
 /* ring buffer */
 struct rt_ringbuffer
 {
-    rt_uint16_t read_index, write_index;
     rt_uint8_t *buffer_ptr;
-    rt_uint16_t buffer_size;
+    /* use the msb of the {read,write}_index as mirror bit. You can see this as
+     * if the buffer adds a virtual mirror and the pointers point either to the
+     * normal or to the mirrored buffer. If the write_index has the same value
+     * with the read_index, but in a different mirror, the buffer is full.
+     * While if the write_index and the read_index are the same and within the
+     * same mirror, the buffer is empty. The ASCII art of the ringbuffer is:
+     *
+     *          mirror = 0                    mirror = 1
+     * +---+---+---+---+---+---+---+|+~~~+~~~+~~~+~~~+~~~+~~~+~~~+
+     * | 0 | 1 | 2 | 3 | 4 | 5 | 6 ||| 0 | 1 | 2 | 3 | 4 | 5 | 6 | Full
+     * +---+---+---+---+---+---+---+|+~~~+~~~+~~~+~~~+~~~+~~~+~~~+
+     *  read_idx-^                   write_idx-^
+     *
+     * +---+---+---+---+---+---+---+|+~~~+~~~+~~~+~~~+~~~+~~~+~~~+
+     * | 0 | 1 | 2 | 3 | 4 | 5 | 6 ||| 0 | 1 | 2 | 3 | 4 | 5 | 6 | Empty
+     * +---+---+---+---+---+---+---+|+~~~+~~~+~~~+~~~+~~~+~~~+~~~+
+     * read_idx-^ ^-write_idx
+     *
+     * The tradeoff is we could only use 32KiB of buffer for 16 bit of index.
+     * But it should be enough for most of the cases.
+     *
+     * Ref: http://en.wikipedia.org/wiki/Circular_buffer#Mirroring */
+    rt_uint16_t read_mirror : 1;
+    rt_uint16_t read_index : 15;
+    rt_uint16_t write_mirror : 1;
+    rt_uint16_t write_index : 15;
+    /* as we use msb of index as mirror bit, the size should be signed and
+     * could only be positive. */
+    rt_int16_t buffer_size;
+};
+
+/* portal device */
+struct rt_portal_device
+{
+    struct rt_device parent;
+    struct rt_device *write_dev;
+    struct rt_device *read_dev;
 };
 
 /* pipe device */
 #define PIPE_DEVICE(device)          ((struct rt_pipe_device*)(device))
+enum rt_pipe_flag
+{
+    /* both read and write won't block */
+    RT_PIPE_FLAG_NONBLOCK_RDWR = 0x00,
+    /* read would block */
+    RT_PIPE_FLAG_BLOCK_RD = 0x01,
+    /* write would block */
+    RT_PIPE_FLAG_BLOCK_WR = 0x02,
+    /* write to this pipe will discard some data when the pipe is full.
+     * When this flag is set, RT_PIPE_FLAG_BLOCK_WR will be ignored since write
+     * operation will always be success. */
+    RT_PIPE_FLAG_FORCE_WR = 0x04,
+};
+
 struct rt_pipe_device
 {
     struct rt_device parent;
@@ -47,10 +105,17 @@ struct rt_pipe_device
     /* ring buffer in pipe device */
     struct rt_ringbuffer ringbuffer;
 
+    enum rt_pipe_flag flag;
+
     /* suspended list */
     rt_list_t suspended_read_list;
     rt_list_t suspended_write_list;
+
+    struct rt_portal_device *write_portal;
+    struct rt_portal_device *read_portal;
 };
+
+#define PIPE_CTRL_GET_SPACE          0x14            /**< get the remaining size of a pipe device */
 
 #define RT_DATAQUEUE_EVENT_UNKNOWN   0x00
 #define RT_DATAQUEUE_EVENT_POP       0x01
@@ -79,6 +144,21 @@ struct rt_data_queue
     void (*evt_notify)(struct rt_data_queue *queue, rt_uint32_t event);
 };
 
+/* workqueue implementation */
+struct rt_workqueue
+{
+	rt_list_t   work_list;
+	rt_thread_t work_thread;
+};
+
+struct rt_work
+{
+	rt_list_t list;
+
+	void (*work_func)(struct rt_work* work, void* work_data);
+	void *work_data;
+};
+
 /**
  * Completion
  */
@@ -95,27 +175,100 @@ void rt_completion_done(struct rt_completion *completion);
  */
 void rt_ringbuffer_init(struct rt_ringbuffer *rb,
                         rt_uint8_t           *pool,
-                        rt_uint16_t           size);
+                        rt_int16_t            size);
 rt_size_t rt_ringbuffer_put(struct rt_ringbuffer *rb,
                             const rt_uint8_t     *ptr,
                             rt_uint16_t           length);
+rt_size_t rt_ringbuffer_put_force(struct rt_ringbuffer *rb,
+                                  const rt_uint8_t     *ptr,
+                                  rt_uint16_t           length);
 rt_size_t rt_ringbuffer_putchar(struct rt_ringbuffer *rb,
                                 const rt_uint8_t      ch);
+rt_size_t rt_ringbuffer_putchar_force(struct rt_ringbuffer *rb,
+                                      const rt_uint8_t      ch);
 rt_size_t rt_ringbuffer_get(struct rt_ringbuffer *rb,
                             rt_uint8_t           *ptr,
                             rt_uint16_t           length);
 rt_size_t rt_ringbuffer_getchar(struct rt_ringbuffer *rb, rt_uint8_t *ch);
+
+enum rt_ringbuffer_state
+{
+    RT_RINGBUFFER_EMPTY,
+    RT_RINGBUFFER_FULL,
+    /* half full is neither full nor empty */
+    RT_RINGBUFFER_HALFFULL,
+};
+
 rt_inline rt_uint16_t rt_ringbuffer_get_size(struct rt_ringbuffer *rb)
 {
     RT_ASSERT(rb != RT_NULL);
     return rb->buffer_size;
 }
 
+rt_inline enum rt_ringbuffer_state
+rt_ringbuffer_status(struct rt_ringbuffer *rb)
+{
+    if (rb->read_index == rb->write_index)
+    {
+        if (rb->read_mirror == rb->write_mirror)
+            return RT_RINGBUFFER_EMPTY;
+        else
+            return RT_RINGBUFFER_FULL;
+    }
+    return RT_RINGBUFFER_HALFFULL;
+}
+
+/** return the size of data in rb */
+rt_inline rt_uint16_t rt_ringbuffer_data_len(struct rt_ringbuffer *rb)
+{
+    switch (rt_ringbuffer_status(rb))
+    {
+    case RT_RINGBUFFER_EMPTY:
+        return 0;
+    case RT_RINGBUFFER_FULL:
+        return rb->buffer_size;
+    case RT_RINGBUFFER_HALFFULL:
+    default:
+        if (rb->write_index > rb->read_index)
+            return rb->write_index - rb->read_index;
+        else
+            return rb->buffer_size - (rb->read_index - rb->write_index);
+    };
+}
+
+/** return the size of empty space in rb */
+#define rt_ringbuffer_space_len(rb) ((rb)->buffer_size - rt_ringbuffer_data_len(rb))
+
 /**
  * Pipe Device
  */
-rt_err_t rt_pipe_create(const char *name, rt_size_t size);
+rt_err_t rt_pipe_init(struct rt_pipe_device *pipe,
+                      const char *name,
+                      enum rt_pipe_flag flag,
+                      rt_uint8_t *buf,
+                      rt_size_t size);
+rt_err_t rt_pipe_detach(struct rt_pipe_device *pipe);
+#ifdef RT_USING_HEAP
+rt_err_t rt_pipe_create(const char *name, enum rt_pipe_flag flag, rt_size_t size);
 void rt_pipe_destroy(struct rt_pipe_device *pipe);
+#endif
+
+/**
+ * Portal for DeviceDriver
+ */
+
+rt_err_t rt_portal_init(struct rt_portal_device *portal,
+                        const char *portal_name,
+                        const char *write_dev,
+                        const char *read_dev);
+rt_err_t rt_portal_detach(struct rt_portal_device *portal);
+
+#ifdef RT_USING_HEAP
+rt_err_t rt_portal_create(const char *name,
+                          const char *write_dev,
+                          const char *read_dev);
+void rt_portal_destroy(struct rt_portal_device *portal);
+#endif
 
 /**
  * DataQueue for DeviceDriver
@@ -136,6 +289,24 @@ rt_err_t rt_data_queue_peak(struct rt_data_queue *queue,
                             const void          **data_ptr,
                             rt_size_t            *size);
 void rt_data_queue_reset(struct rt_data_queue *queue);
+
+#ifdef RT_USING_HEAP
+/**
+ * WorkQueue for DeviceDriver
+ */
+struct rt_workqueue *rt_workqueue_create(const char* name, rt_uint16_t stack_size, rt_uint8_t priority);
+rt_err_t rt_workqueue_destroy(struct rt_workqueue* queue);
+rt_err_t rt_workqueue_dowork(struct rt_workqueue* queue, struct rt_work* work);
+rt_err_t rt_workqueue_cancel_work(struct rt_workqueue* queue, struct rt_work* work);
+
+rt_inline void rt_work_init(struct rt_work* work, void (*work_func)(struct rt_work* work, void* work_data), 
+    void* work_data)
+{
+    rt_list_init(&(work->list));
+    work->work_func = work_func;
+    work->work_data = work_data;
+}
+#endif
 
 #ifdef RT_USING_RTC
 #include "drivers/rtc.h"
@@ -181,6 +352,14 @@ void rt_data_queue_reset(struct rt_data_queue *queue);
 #include "drivers/mmcsd_core.h"
 #include "drivers/sd.h"
 #include "drivers/sdio.h"
+#endif
+
+#ifdef RT_USING_WDT
+#include "drivers/watchdog.h"
+#endif
+
+#ifdef RT_USING_PIN
+#include "drivers/pin.h"
 #endif
 
 #endif /* __RT_DEVICE_H__ */

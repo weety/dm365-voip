@@ -1,3 +1,27 @@
+#
+# File      : iar.py
+# This file is part of RT-Thread RTOS
+# COPYRIGHT (C) 2006 - 2015, RT-Thread Development Team
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License along
+#  with this program; if not, write to the Free Software Foundation, Inc.,
+#  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+#
+# Change Logs:
+# Date           Author       Notes
+# 2015-01-20     Bernard      Add copyright information
+#
+
 import os
 import sys
 import string
@@ -37,7 +61,10 @@ def IARAddGroup(parent, name, files, project_path):
         
         file = SubElement(group, 'file')
         file_name = SubElement(file, 'name')
-        file_name.text = ('$PROJ_DIR$\\' + path).decode(fs_encoding)
+        if os.path.isabs(path):
+            file_name.text = path.decode(fs_encoding)
+        else:
+            file_name.text = ('$PROJ_DIR$\\' + path).decode(fs_encoding)
 
 def IARWorkspace(target):
     # make an workspace 
@@ -91,7 +118,11 @@ def IARProject(target, script):
         if name.text == 'CCIncludePath2' or name.text == 'newCCIncludePaths':
             for path in paths:
                 state = SubElement(option, 'state')
-                state.text = '$PROJ_DIR$\\' + path
+                if os.path.isabs(path):
+                    state.text = path
+                else:
+                    state.text = '$PROJ_DIR$\\' + path
+
         if name.text == 'CCDefines':
             for define in CPPDEFINES:
                 state = SubElement(option, 'state')

@@ -5,7 +5,11 @@
 #include <rtthread.h>
 
 #define NIOCTL_GADDR		0x01
+#ifndef RT_LWIP_ETH_MTU
 #define ETHERNET_MTU		1500
+#else
+#define ETHERNET_MTU		RT_LWIP_ETH_MTU
+#endif
 
 struct eth_device
 {
@@ -30,6 +34,6 @@ rt_err_t eth_device_init(struct eth_device * dev, char *name);
 rt_err_t eth_device_init_with_flag(struct eth_device *dev, char *name, rt_uint8_t flag);
 rt_err_t eth_device_linkchange(struct eth_device* dev, rt_bool_t up);
 
-void eth_system_device_init(void);
+int eth_system_device_init(void);
 
 #endif /* __NETIF_ETHERNETIF_H__ */
