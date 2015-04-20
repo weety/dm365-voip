@@ -273,6 +273,10 @@ void mmu_enable()
 	asm ("mrc p15, 0, %0, c1, c0, 0":"=r" (i));
 
 	i |= 0x1;
+	i |= (1 << 13); /* High exception vectors selected, address range = 0xFFFF0000-0xFFFF001C */
+	/* S R bit=1 0  for system protection */
+	i |= (1 << 8);
+	i &= ~(1 << 9);
 
 	/* write back to control register */
 	asm ("mcr p15, 0, %0, c1, c0, 0": :"r" (i));
@@ -431,7 +435,87 @@ void mmu_invalidate_dcache_all()
 #endif
 
 /* level1 page table */
-static volatile unsigned int _page_table[4*1024] __attribute__((aligned(16*1024)));
+static volatile unsigned int _pgd_table[4*1024] ALIGN(16*1024);
+/*
+ * level2 page table
+ * RT_MMU_PTE_SIZE must be 1024*n
+ */
+static volatile unsigned int _pte_table[RT_MMU_PTE_SIZE] ALIGN(1*1024);
+
+void mmu_create_pgd(struct mem_desc *mdesc)
+{
+    volatile rt_uint32_t *pTT;
+    volatile int i, nSec;
+    pTT = (rt_uint32_t *)_pgd_table + (mdesc->vaddr_start >> 20);
+    nSec = (mdesc->vaddr_end >> 20) - (mdesc->vaddr_start >> 20);
+    for(i = 0; i <= nSec; i++)
+    {
+        *pTT = mdesc->sect_attr | (((mdesc->paddr_start >> 20) + i) << 20);
+        pTT++;
+    }
+}
+
+void mmu_create_pte(struct mem_desc *mdesc)
+{
+    volatile rt_uint32_t *pTT;
+    volatile rt_uint32_t *p_pteentry;
+    int i;
+    rt_uint32_t vaddr;
+    rt_uint32_t total_page = 0;
+    rt_uint32_t pte_offset = 0;
+    rt_uint32_t sect_attr = 0;
+
+    total_page = (mdesc->vaddr_end >> 12) - (mdesc->vaddr_start >> 12) + 1;
+    pte_offset = mdesc->sect_attr & 0xfffffc00;
+    sect_attr = mdesc->sect_attr & 0x3ff;
+    vaddr = mdesc->vaddr_start;
+
+    for(i = 0; i < total_page; i++)
+    {
+        pTT = (rt_uint32_t *)_pgd_table + (vaddr >> 20);
+        if (*pTT == 0) /* Level 1 page table item not used, now update pgd item */
+        {
+            *pTT = pte_offset | sect_attr;
+            p_pteentry = (rt_uint32_t *)pte_offset + 
+            ((vaddr & 0x000ff000) >> 12);
+            pte_offset += 1024;
+        }
+        else /* using old Level 1 page table item */
+        {
+            p_pteentry = (rt_uint32_t *)(*pTT & 0xfffffc00) + 
+            ((vaddr & 0x000ff000) >> 12);
+        }
+
+
+        *p_pteentry = mdesc->page_attr | (((mdesc->paddr_start >> 12) + i) << 12);
+        vaddr += 0x1000;
+    }
+}
+
+static void build_pte_mem_desc(struct mem_desc *mdesc, rt_uint32_t size)
+{
+    rt_uint32_t pte_offset = 0;
+    rt_uint32_t nsec = 0;
+    /* set page table */
+    for (; size > 0; size--)
+    {
+        if (mdesc->mapped_mode == PAGE_MAPPED)
+        {
+            nsec = (RT_ALIGN(mdesc->vaddr_end, 0x100000) - RT_ALIGN_DOWN(mdesc->vaddr_start, 0x100000)) >> 20;
+            mdesc->sect_attr |= (((rt_uint32_t)_pte_table)& 0xfffffc00) + pte_offset;
+            pte_offset += nsec << 10;
+        }
+        if (pte_offset >= RT_MMU_PTE_SIZE)
+        {
+            rt_kprintf("PTE table size too little\n");
+            RT_ASSERT(0);
+        }
+
+        mdesc++;
+    }
+}
+
+#if 0
 void mmu_setmtt(rt_uint32_t vaddrStart, rt_uint32_t vaddrEnd, rt_uint32_t paddrStart, rt_uint32_t attr)
 {
     volatile rt_uint32_t *pTT;
@@ -444,6 +528,7 @@ void mmu_setmtt(rt_uint32_t vaddrStart, rt_uint32_t vaddrEnd, rt_uint32_t paddrS
 		pTT++;
     }
 }
+#endif
 
 void rt_hw_mmu_init(struct mem_desc *mdesc, rt_uint32_t size)
 {
@@ -453,16 +538,27 @@ void rt_hw_mmu_init(struct mem_desc *mdesc, rt_uint32_t size)
 	mmu_disable();
 	mmu_invalidate_tlb();
 
-	/* set page table */
-	for (; size > 0; size--)
-	{
-		mmu_setmtt(mdesc->vaddr_start, mdesc->vaddr_end, 
-			mdesc->paddr_start, mdesc->attr);
-		mdesc++;
-	}
+	/* clear pgd and pte table */
+    rt_memset((void *)_pgd_table, 0, 16*1024);
+    rt_memset((void *)_pte_table, 0, RT_MMU_PTE_SIZE);
+    build_pte_mem_desc(mdesc, size);
+    /* set page table */
+    for (; size > 0; size--)
+    {
+        if (mdesc->mapped_mode == SECT_MAPPED)
+        {
+            mmu_create_pgd(mdesc);
+        }
+        else
+        {
+            mmu_create_pte(mdesc);
+        }
 
-	/* set MMU table address */
-	mmu_setttbase((rt_uint32_t)_page_table);
+        mdesc++;
+    }
+
+    /* set MMU table address */
+    mmu_setttbase((rt_uint32_t)_pgd_table);
 
     /* enables MMU */
     mmu_enable();

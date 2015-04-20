@@ -130,6 +130,13 @@
 /* Enable freemodbus protocol stack*/
 /* #define RT_USING_MODBUS */
 
+/* USING CPU FFS */
+#define RT_USING_CPU_FFS
+
+/* MMU pte item size defined */
+#define RT_MMU_PTE_SIZE		4096
+
+
 #define RT_USING_I2C
 
 #define RT_USING_SDIO

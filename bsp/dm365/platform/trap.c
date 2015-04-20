@@ -113,6 +113,13 @@ void rt_hw_trap_pabt(struct rt_hw_register *regs)
  */
 void rt_hw_trap_dabt(struct rt_hw_register *regs)
 {
+	rt_uint32_t fault_addr;
+	asm  volatile ("mrc p15, 0, %0, c6, c0, 0"
+			:
+			:"r"(fault_addr)
+			:"cc");
+	rt_kprintf("unhandler access to 0x%08x\n", fault_addr);
+
 	rt_hw_show_register(regs);
 
 	rt_kprintf("data abort\n");

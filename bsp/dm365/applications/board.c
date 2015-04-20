@@ -26,11 +26,11 @@ extern void rt_hw_clock_init(void);
 extern void rt_hw_uart_init(void);
 
 static struct mem_desc dm365_mem_desc[] = {
-	{ 0x00000000, 0xFFFFFFFF, 0x00000000, RW_NCNB },     /* None cached for 4G memory */
-	{ 0x80000000, 0x88000000-1, 0x80000000, RW_CB },     /* 128M cached SDRAM memory */
-	{ 0x00000000, 0x100000, 0x80000000, RW_CB },         /* isr vector table */
-	{ 0x90000000, 0x90100000 - 1, 0x00000000, RW_NCNB }, /* 4K SRAM0 + 4k SRAM1 */
-	{ 0xA0000000, 0xA8000000-1, 0x80000000, RW_NCNB }   /* 64M none-cached SDRAM memory */
+	{ 0x80000000, 0x88000000-1, 0x80000000, SECT_RW_CB, 0, SECT_MAPPED },       /* 128M cached SDRAM memory */
+	{ 0xA0000000, 0xA8000000-1, 0x80000000, SECT_RW_NCNB, 0, SECT_MAPPED },     /* 128M No cached SDRAM memory */
+	{ 0xFFFF0000, 0xFFFF1000-1, 0x80000000, SECT_TO_PAGE, PAGE_RO_CB, PAGE_MAPPED }, /* isr vector table */
+	{ 0x01C00000, 0x02000000-1, 0x01C00000, SECT_RW_NCNB, 0, SECT_MAPPED },       /* CFG BUS peripherals */
+	{ 0x02000000, 0x0A000000-1, 0x02000000, SECT_RW_NCNB, 0, SECT_MAPPED },       /* AEMIF */
 };
 
 
