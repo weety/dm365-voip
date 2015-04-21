@@ -43,15 +43,6 @@ void rt_timer_handler(int vector, void *param)
 }
 
 /**
- * This function will handle serial
- */
-void rt_serial_handler(int vector, void *param)
-{
-	rt_device_t dev = (rt_device_t)param;
-	rt_hw_serial_isr(dev);
-}
-
-/**
  * This function will init timer0 for system ticks
  */
  void rt_hw_timer_init()
