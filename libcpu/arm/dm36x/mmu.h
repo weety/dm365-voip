@@ -132,8 +132,8 @@
 #define PAGE_NCB         (PTE_BUFFERABLE)                //cache_off,WR_BUF on
 #define PAGE_NCNB        (0 << 2)                        //cache_off,WR_BUF off
 
-#define PAGE_AP_RW       (PTE_EXT_AP0|PTE_EXT_AP1)             //supervisor=RW, user=RW
-#define PAGE_AP_RO       ((0 << 4)|(0 << 5))                   //supervisor=RO, user=NO Access(SR=10)
+#define PAGE_AP_RW       PTE_SMALL_AP_URW_SRW             //supervisor=RW, user=RW
+#define PAGE_AP_RO       PTE_SMALL_AP_UNO_SRO             //supervisor=RO, user=NO Access(SR=10)
 
 #define PAGE_RW_CB      (PAGE_AP_RW|PAGE_CB|PTE_TYPE_SMALL) /* Read/Write, cache, write back */
 #define PAGE_RW_CNB     (PAGE_AP_RW|PAGE_CNB|PTE_TYPE_SMALL) /* Read/Write, cache, write through */

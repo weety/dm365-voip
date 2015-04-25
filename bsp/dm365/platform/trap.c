@@ -114,11 +114,19 @@ void rt_hw_trap_pabt(struct rt_hw_register *regs)
 void rt_hw_trap_dabt(struct rt_hw_register *regs)
 {
 	rt_uint32_t fault_addr;
+	rt_uint32_t fault_status;
 	asm  volatile ("mrc p15, 0, %0, c6, c0, 0"
 			:
 			:"r"(fault_addr)
 			:"cc");
 	rt_kprintf("unhandler access to 0x%08x\n", fault_addr);
+
+	/* read DFSR */
+	asm volatile ("MRC p15, 0, %0, c5, c0, 0"
+			:
+			:"r"(fault_status)
+			:"cc");
+	rt_kprintf("fault status 0x%08x\n", fault_status);
 
 	rt_hw_show_register(regs);
 
