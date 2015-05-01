@@ -19,7 +19,7 @@
  *
  * Change Logs:
  * Date           Author       Notes
- * 2011-01-13     weety      copy from mini2440
+ * 2011-01-13     weety
  */
 #include <rtthread.h>
 
@@ -66,8 +66,12 @@ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter,
 	*(--stk) = 0;							/* r2 */
 	*(--stk) = 0;							/* r1 */
 	*(--stk) = (rt_uint32_t)parameter;		/* r0 : argument */
-	*(--stk) = SVCMODE;						/* cpsr */
-	*(--stk) = SVCMODE;						/* spsr */
+
+	/* cpsr */
+	if ((rt_uint32_t)tentry & 0x01)
+		*(--stk) = SVCMODE | 0x20;			/* thumb mode */
+	else
+		*(--stk) = SVCMODE;					/* arm mode   */
 
 	/* return task's current stack address */
 	return (rt_uint8_t *)stk;
