@@ -273,6 +273,8 @@ static int i2c_davinci_wait_bus_not_busy(struct davinci_i2c_dev *dev,
 {
 	unsigned long timeout;
 	static rt_uint16_t to_cnt;
+	RT_ASSERT(dev != RT_NULL);
+	RT_ASSERT(dev->bus != RT_NULL);
 
 	timeout = rt_tick_get() + dev->bus->timeout;
 	while (davinci_i2c_read_reg(dev, DAVINCI_I2C_STR_REG)
@@ -627,6 +629,7 @@ int davinci_i2c_init(char *bus_name)
 	dev->base = DAVINCI_I2C_BASE;
 	dev->bus_freq = 100;
 	dev->bus_delay = 0;
+	dev->bus = bus;
 
 	bus->priv = dev;
 
