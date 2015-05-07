@@ -12,7 +12,7 @@
 #define FTP_USER			"rtt"
 #define FTP_PASSWORD		"demo"
 #define FTP_WELCOME_MSG		"220 welcome on RT-Thread FTP server.\r\n"
-#define FTP_BUFFER_SIZE		1024
+#define FTP_BUFFER_SIZE		8192
 
 #define INET_ADDRSTRLEN 16
 
