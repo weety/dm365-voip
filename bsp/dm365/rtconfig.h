@@ -136,8 +136,11 @@
 /* MMU pte item size defined */
 #define RT_MMU_PTE_SIZE		4096
 
+#define RT_USING_GPIO
 
 #define RT_USING_I2C
+
+#define RT_USING_SPI
 
 #define RT_USING_SDIO
 #define RT_MMCSD_DBG
@@ -145,11 +148,16 @@
 /* SECTION: lwip, a lightweight TCP/IP protocol stack */
 /* Using lightweight TCP/IP protocol stack */
 #define RT_USING_LWIP
-#define RT_LWIP_DNS
 
 /* Trace LwIP protocol */
-/*#define RT_LWIP_DEBUG*/
-#define RT_USING_NETUTILS
+/* #define RT_LWIP_DEBUG */
+
+//#define RT_LWIP_USING_RT_MEM
+//#define RT_LWIP_REASSEMBLY_FRAG
+
+#define SO_REUSE 1
+
+#define RT_LWIP_DNS
 
 /* Enable ICMP protocol */
 #define RT_LWIP_ICMP
@@ -164,10 +172,10 @@
 #define RT_LWIP_TCP
 
 /* the number of simulatenously active TCP connections*/
-#define RT_LWIP_TCP_PCB_NUM	5
+#define RT_LWIP_TCP_PCB_NUM	32
 
 /* TCP sender buffer space */
-#define RT_LWIP_TCP_SND_BUF	1024*10
+#define RT_LWIP_TCP_SND_BUF	1460*10
 
 /* TCP receive window. */
 #define RT_LWIP_TCP_WND	1460*8
@@ -177,8 +185,6 @@
 
 /* Using DHCP */
 /* #define RT_LWIP_DHCP */
-
-#define RT_LWIP_DNS
 
 /* ip address of target */
 #define RT_LWIP_IPADDR0	192

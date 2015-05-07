@@ -7,16 +7,21 @@ cwd = GetCurrentDir()
 # The set of source files associated with this SConscript file.
 path = [cwd]
 
-#if GetDepend('RT_USING_I2C'):
-#	src_drv += ['i2c-davinci.c']
-
-#src	= File(src_drv)
 src = Split("""
-i2c-davinci.c
-pcf8563.c
-mmcsd.c
 davinci_serial.c
 """)
+
+if GetDepend('RT_USING_GPIO'):
+	src += ['gpio.c']
+
+if GetDepend('RT_USING_I2C'):
+	src += ['i2c-davinci.c', 'pcf8563.c']
+
+if GetDepend('RT_USING_SDIO'):
+	src += ['mmcsd.c']
+
+if GetDepend('RT_USING_SPI'):
+	src += ['spi-davinci.c']
 
 if GetDepend('RT_USING_LWIP'):
 	src += ['davinci_emac.c']

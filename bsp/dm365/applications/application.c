@@ -47,6 +47,10 @@
 #include <netif/ethernetif.h>
 #endif
 
+#ifdef RT_USING_SPI
+#include <spi-davinci.h>
+#endif
+
 #ifdef RT_USING_LED
 #include "led.h"
 #endif
@@ -131,10 +135,8 @@ void rt_init_thread_entry(void* parameter)
 		/* register ethernetif device */
 		eth_system_device_init();
 		rt_hw_davinci_emac_init();
-		/* re-init device driver */
-		rt_device_init_all();
 		/* init lwip system */
-		lwip_sys_init();
+		lwip_system_init();
 	}
 #endif
 
@@ -143,6 +145,12 @@ void rt_init_thread_entry(void* parameter)
 		rt_i2c_core_init();
 		davinci_i2c_init("I2C1");
 		pcf8563_init("I2C1", 0x51);
+	}
+#endif
+
+#ifdef RT_USING_SPI
+	{
+		rt_hw_spi_init();
 	}
 #endif
 
