@@ -840,7 +840,7 @@ err1:
 	{
 		if (session->is_anonymous == RT_TRUE)
 		{
-			rt_sprintf(sbuf, "550 Permission denied.\r\n");
+			rt_sprintf(sbuf, "530 Permission denied.\r\n");
 			send(session->sockfd, sbuf, strlen(sbuf), 0);
 			rt_free(sbuf);
 			return 0;
@@ -863,7 +863,7 @@ err1:
 	{
 		if (session->is_anonymous == RT_TRUE)
 		{
-			rt_sprintf(sbuf, "550 Permission denied.\r\n");
+			rt_sprintf(sbuf, "530 Permission denied.\r\n");
 			send(session->sockfd, sbuf, strlen(sbuf), 0);
 			rt_free(sbuf);
 			return 0;
@@ -883,7 +883,7 @@ err1:
 	{
 		if (session->is_anonymous == RT_TRUE)
 		{
-			rt_sprintf(sbuf, "550 Permission denied.\r\n");
+			rt_sprintf(sbuf, "530 Permission denied.\r\n");
 			send(session->sockfd, sbuf, strlen(sbuf), 0);
 			rt_free(sbuf);
 			return 0;
@@ -905,14 +905,14 @@ err1:
 	{
 		if (session->is_anonymous == RT_TRUE)
 		{
-			rt_sprintf(sbuf, "550 Permission denied.\r\n");
+			rt_sprintf(sbuf, "530 Permission denied.\r\n");
 			send(session->sockfd, sbuf, strlen(sbuf), 0);
 			rt_free(sbuf);
 			return 0;
 		}
 		build_full_path(session, parameter_ptr, filename, 256);
 
-		rt_sprintf(sbuf, "250 Successfully rececive old file \"%s\".\r\n", filename);
+		rt_sprintf(sbuf, "350 Successfully rececive old file \"%s\".\r\n", filename);
 		send(session->sockfd, sbuf, strlen(sbuf), 0);
 	}
 	else if(str_begin_with(buf, "RNTO")==0)
@@ -920,7 +920,7 @@ err1:
 		char new_filename[256];
 		if (session->is_anonymous == RT_TRUE)
 		{
-			rt_sprintf(sbuf, "550 Permission denied.\r\n");
+			rt_sprintf(sbuf, "530 Permission denied.\r\n");
 			send(session->sockfd, sbuf, strlen(sbuf), 0);
 			rt_free(sbuf);
 			return 0;
@@ -929,7 +929,7 @@ err1:
 
 		if(rename(filename, new_filename) == -1)
 		{
-			rt_sprintf(sbuf, "550 rename file \"%s\" error.\r\n", filename);
+			rt_sprintf(sbuf, "553 rename file \"%s\" error.\r\n", filename);
 			send(session->sockfd, sbuf, strlen(sbuf), 0);
 		}
 		else
