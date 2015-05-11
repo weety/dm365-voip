@@ -89,6 +89,8 @@
 #define FINSH_USING_SYMTAB
 #define FINSH_USING_DESCRIPTION
 #define FINSH_THREAD_STACK_SIZE 4096
+#define FINSH_USING_HISTORY 1
+#define FINSH_USING_MSH
 
 /* SECTION: the runtime libc library */
 /* the runtime libc library */
