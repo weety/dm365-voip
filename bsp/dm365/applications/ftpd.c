@@ -938,6 +938,11 @@ err1:
 			send(session->sockfd, sbuf, strlen(sbuf), 0);
 		}
 	}
+	else if((str_begin_with(buf, "NOOP")==0) || str_begin_with(buf, "noop")==0)
+	{
+		rt_sprintf(sbuf, "200 noop!\r\n");
+		send(session->sockfd, sbuf, strlen(sbuf), 0);
+	}
 	else if(str_begin_with(buf, "QUIT")==0)
 	{
 		rt_sprintf(sbuf, "221 Bye!\r\n");
@@ -966,5 +971,15 @@ void ftpd_start()
 
 #ifdef RT_USING_FINSH
 #include <finsh.h>
-FINSH_FUNCTION_EXPORT(ftpd_start, start ftp server)
+FINSH_FUNCTION_EXPORT(ftpd_start, start ftp server);
+
+#ifdef FINSH_USING_MSH
+int cmd_ftpd_start(int argc, char** argv)
+{
+	ftpd_start();
+	return 0;
+}
+FINSH_FUNCTION_EXPORT_ALIAS(cmd_ftpd_start, __cmd_ftpd_start, start ftp server.);
+#endif
+
 #endif
