@@ -279,12 +279,20 @@ void list_irq(void)
 		}
 	}
 }
-#endif
 
 #include <finsh.h>
 FINSH_FUNCTION_EXPORT(list_irq, list system irq);
 
-#endif
+#ifdef FINSH_USING_MSH
+int cmd_list_irq(int argc, char** argv)
+{
+    list_irq();
+    return 0;
+}
+FINSH_FUNCTION_EXPORT_ALIAS(cmd_list_irq, __cmd_list_irq, list system irq.);
 
+#endif
+#endif
+#endif
 
 /*@}*/

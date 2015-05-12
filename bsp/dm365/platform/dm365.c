@@ -299,7 +299,7 @@ void platform_init(void)
 
 
 /* Reset board using the watchdog timer */
-void reset(void)
+void reset_system(void)
 {
 	rt_uint32_t tgcr, wdtcr;
 	rt_uint32_t base = DAVINCI_WDOG_BASE;
@@ -340,13 +340,5 @@ void reset(void)
 	wdtcr = 0xDEADBEEF;
 	davinci_writel(wdtcr, base + WDTCR);
 }
-
-#ifdef RT_USING_FINSH
-
-#include <finsh.h>
-FINSH_FUNCTION_EXPORT(reset, reset system);
-
-#endif
-
 
 

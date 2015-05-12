@@ -27,18 +27,7 @@
  */
 void machine_reset()
 {
-	/* Disable all interrupt except the WDT */
-	writel(0, DM365_EINT_ENABLE0);
-	writel(0, DM365_EINT_ENABLE1);
-	
-	/* Disable watchdog */
-	//WTCON = 0x0000;
-
-	/* Initialize watchdog timer count register */
-	//WTCNT = 0x0001;
-
-	/* Enable watchdog timer; assert reset at timer timeout */
-	//WTCON = 0x0021;
+	reset_system();
 }
 
 /**
@@ -47,7 +36,31 @@ void machine_reset()
  */
 void machine_shutdown()
 {
-	rt_kprintf("shutdown...\n");
+
 }
+
+#ifdef RT_USING_FINSH
+
+#include <finsh.h>
+FINSH_FUNCTION_EXPORT(rt_hw_cpu_reset, restart the system);
+
+#ifdef FINSH_USING_MSH
+int cmd_reset(int argc, char** argv)
+{
+	rt_hw_cpu_reset();
+	return 0;
+}
+
+int cmd_shutdown(int argc, char** argv)
+{
+	rt_hw_cpu_shutdown();
+	return 0;
+}
+
+FINSH_FUNCTION_EXPORT_ALIAS(cmd_reset, __cmd_reset, restart the system.);
+FINSH_FUNCTION_EXPORT_ALIAS(cmd_shutdown, __cmd_shutdown, shutdown the system.);
+
+#endif
+#endif
 
 /*@}*/
