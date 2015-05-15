@@ -89,7 +89,7 @@ static char *emac_rxhost_errcodes[16] = {
 
 static void emac_int_enable(struct emac_priv *priv);
 static void emac_int_disable(struct emac_priv *priv);
-
+static int emac_init_txch(struct emac_priv *priv, rt_uint32_t ch);
 
 /* PHY/MII bus related */
 
@@ -652,6 +652,52 @@ static int emac_dev_xmit(struct pbuf *p, struct emac_priv *priv)
 	return RT_EOK;
 }
 
+/**
+ * emac_cleanup_txch: Book-keep function to clean TX channel resources
+ * @priv: The DaVinci EMAC private adapter structure
+ * @ch: TX channel number
+ *
+ * Called to clean up TX channel resources
+ *
+ */
+static void emac_cleanup_txch(struct emac_priv *priv, rt_uint32_t ch)
+{
+	struct emac_txch *txch = priv->txch[ch];
+
+	if (txch) {
+		if (txch->bd_mem)
+			txch->bd_mem = NULL;
+		rt_free(txch->tx_complete);
+		rt_free(txch);
+		priv->txch[ch] = NULL;
+	}
+}
+
+
+/**
+ * emac_dev_tx_timeout: EMAC Transmit timeout function
+ * @ndev: The DaVinci EMAC network adapter
+ *
+ * Called when system detects that a skb timeout period has expired
+ * potentially due to a fault in the adapter in not being able to send
+ * it out on the wire. We teardown the TX channel assuming a hardware
+ * error and re-initialize the TX channel for hardware operation
+ *
+ */
+static void emac_dev_tx_timeout(struct emac_priv *priv)
+{
+	rt_kprintf("emac tx timeout.\n");
+	priv->net_dev_stats.tx_errors++;
+	emac_int_disable(priv);
+	emac_stop_txch(priv, EMAC_DEF_TX_CH);
+	emac_cleanup_txch(priv, EMAC_DEF_TX_CH);
+	emac_init_txch(priv, EMAC_DEF_TX_CH);
+	emac_write(EMAC_TXHDP(0), 0);
+	emac_write(EMAC_TXINTMASKSET, BIT(EMAC_DEF_TX_CH));
+	emac_int_enable(priv);
+}
+
+
 /* ethernet device interface */
 /* transmit packet. */
 rt_err_t rt_davinci_emac_tx( rt_device_t dev, struct pbuf* p)
@@ -660,6 +706,7 @@ rt_err_t rt_davinci_emac_tx( rt_device_t dev, struct pbuf* p)
 	rt_uint8_t* bufptr, *buf = RT_NULL;
 	unsigned long ctrl;
 	rt_uint32_t addr;*/
+	rt_err_t err;
 	struct emac_priv *priv = dev->user_data;
 
 	emac_dev_xmit(p, priv);
@@ -681,7 +728,11 @@ rt_err_t rt_davinci_emac_tx( rt_device_t dev, struct pbuf* p)
 	}*/
 #endif
 	/* wait ack */
-	rt_sem_take(&sem_ack, RT_WAITING_FOREVER);
+	err = rt_sem_take(&sem_ack, RT_TICK_PER_SECOND*5);
+	if (err != RT_EOK)
+	{
+		emac_dev_tx_timeout(priv);
+	}
 	//rt_free(buf);
 
 	return RT_EOK;
@@ -1412,6 +1463,62 @@ static int emac_hw_enable(struct emac_priv *priv)
 
 }
 
+/**
+ * emac_dev_getnetstats: EMAC get statistics function
+ * @ndev: The DaVinci EMAC network adapter
+ *
+ * Called when system wants to get statistics from the device.
+ *
+ * We return the statistics in net_device_stats structure pulled from emac
+ */
+static struct net_device_stats *emac_dev_getnetstats(struct emac_priv *priv)
+{
+	rt_uint32_t mac_control;
+	rt_uint32_t stats_clear_mask;
+
+	/* update emac hardware stats and reset the registers*/
+
+	mac_control = emac_read(EMAC_MACCONTROL);
+
+	if (mac_control & EMAC_MACCONTROL_GMIIEN)
+		stats_clear_mask = EMAC_STATS_CLR_MASK;
+	else
+		stats_clear_mask = 0;
+
+	priv->net_dev_stats.multicast += emac_read(EMAC_RXMCASTFRAMES);
+	emac_write(EMAC_RXMCASTFRAMES, stats_clear_mask);
+
+	priv->net_dev_stats.collisions += (emac_read(EMAC_TXCOLLISION) +
+					   emac_read(EMAC_TXSINGLECOLL) +
+					   emac_read(EMAC_TXMULTICOLL));
+	emac_write(EMAC_TXCOLLISION, stats_clear_mask);
+	emac_write(EMAC_TXSINGLECOLL, stats_clear_mask);
+	emac_write(EMAC_TXMULTICOLL, stats_clear_mask);
+
+	priv->net_dev_stats.rx_length_errors += (emac_read(EMAC_RXOVERSIZED) +
+						emac_read(EMAC_RXJABBER) +
+						emac_read(EMAC_RXUNDERSIZED));
+	emac_write(EMAC_RXOVERSIZED, stats_clear_mask);
+	emac_write(EMAC_RXJABBER, stats_clear_mask);
+	emac_write(EMAC_RXUNDERSIZED, stats_clear_mask);
+
+	priv->net_dev_stats.rx_over_errors += (emac_read(EMAC_RXSOFOVERRUNS) +
+					       emac_read(EMAC_RXMOFOVERRUNS));
+	emac_write(EMAC_RXSOFOVERRUNS, stats_clear_mask);
+	emac_write(EMAC_RXMOFOVERRUNS, stats_clear_mask);
+
+	priv->net_dev_stats.rx_fifo_errors += emac_read(EMAC_RXDMAOVERRUNS);
+	emac_write(EMAC_RXDMAOVERRUNS, stats_clear_mask);
+
+	priv->net_dev_stats.tx_carrier_errors +=
+		emac_read(EMAC_TXCARRIERSENSE);
+	emac_write(EMAC_TXCARRIERSENSE, stats_clear_mask);
+
+	priv->net_dev_stats.tx_fifo_errors = emac_read(EMAC_TXUNDERRUN);
+	emac_write(EMAC_TXUNDERRUN, stats_clear_mask);
+
+	return &priv->net_dev_stats;
+}
 
 
 /* RT-Thread Device Interface */
@@ -1579,3 +1686,86 @@ void rt_hw_davinci_emac_init()
 	eth_device_init(&(davinci_emac_device.parent), "e0");
 	
 }
+
+
+#ifdef RT_USING_FINSH
+#include <finsh.h>
+
+void dump_emac_stats(void)
+{
+	int i;
+	struct emac_priv *emac;
+	struct net_device_stats *stats;
+	rt_device_t dev = rt_device_find("e0");
+
+	if(dev == RT_NULL)
+		return;
+
+	emac = (struct emac_priv *)dev->user_data;
+
+	stats = emac_dev_getnetstats(emac);
+	rt_kprintf("rx_packets      = %d\n"
+				"tx_packets      = %d\n"
+				"rx_bytes        = %d\n"
+				"tx_bytes        = %d\n"
+				"rx_errors       = %d\n"
+				"tx_errors       = %d\n"
+				"rx_dropped      = %d\n"
+				"tx_dropped      = %d\n"
+				"multicast       = %d\n"
+				"collisions      = %d\n",
+		stats->rx_packets,
+		stats->tx_packets,
+		stats->rx_bytes,
+		stats->tx_bytes,
+		stats->rx_errors,
+		stats->tx_errors,
+		stats->rx_dropped,
+		stats->tx_dropped,
+		stats->multicast,
+		stats->collisions);
+
+	rt_kprintf("rx_length_errors = %d\n"
+				"rx_over_errors   = %d\n"
+				"rx_crc_errors    = %d\n"
+				"rx_frame_errors  = %d\n"
+				"rx_fifo_errors   = %d\n"
+				"rx_missed_errors = %d\n",
+		stats->rx_length_errors,
+		stats->rx_over_errors,
+		stats->rx_crc_errors,
+		stats->rx_frame_errors,
+		stats->rx_fifo_errors,
+		stats->rx_missed_errors);
+
+	rt_kprintf("tx_aborted_errors   = %d\n"
+				"tx_carrier_errors   = %d\n"
+				"tx_fifo_errors      = %d\n"
+				"tx_heartbeat_errors = %d\n"
+				"tx_window_errors    = %d\n",
+		stats->tx_aborted_errors,
+		stats->tx_carrier_errors,
+		stats->tx_fifo_errors,
+		stats->tx_heartbeat_errors,
+		stats->tx_window_errors);
+
+	rt_kprintf("rx_compressed  = %d\n"
+				"tx_compressed  = %d\n",
+		stats->rx_compressed,
+		stats->tx_compressed);
+
+	rt_kprintf("\n");
+}
+
+FINSH_FUNCTION_EXPORT(dump_emac_stats, dump emac statistics);
+
+#ifdef FINSH_USING_MSH
+int cmd_dump_emac_stats(int argc, char** argv)
+{
+	dump_emac_stats();
+	return 0;
+}
+FINSH_FUNCTION_EXPORT_ALIAS(cmd_dump_emac_stats, __cmd_dump_emac_stats, dump emac statistics.);
+#endif
+
+#endif
