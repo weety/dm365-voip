@@ -622,7 +622,7 @@ static int emac_dev_xmit(struct pbuf *p, struct emac_priv *priv)
 
 	/* If no link, return */
 	if (!priv->link) {
-			rt_kprintf("DaVinci EMAC: No link to transmit");
+			rt_kprintf("DaVinci EMAC: No link to transmit\n");
 		return -RT_EBUSY;
 	}
 
@@ -643,7 +643,7 @@ static int emac_dev_xmit(struct pbuf *p, struct emac_priv *priv)
 	if (ret_code != 0) {
 		if (ret_code == EMAC_ERR_TX_OUT_OF_BD) {
 			rt_kprintf("DaVinci EMAC: xmit() fatal"\
-					" err. Out of TX BD's");
+					" err. Out of TX BD's\n");
 		}
 		priv->net_dev_stats.tx_dropped++;
 		return -RT_EBUSY;
@@ -845,7 +845,7 @@ static void *emac_net_alloc_rx_buf(struct emac_priv *priv, int buf_size,
 
 	p = pbuf_alloc(PBUF_LINK, buf_size, PBUF_RAM);
 	if (RT_NULL == p) {
-		rt_kprintf("DaVinci EMAC: failed to alloc pbuf");
+		rt_kprintf("DaVinci EMAC: failed to alloc pbuf\n");
 		return RT_NULL;
 	}
 
@@ -1661,7 +1661,7 @@ void rt_hw_davinci_emac_init()
 	davinci_emac_device.version = EMAC_VERSION_2;
 	davinci_emac_device.rmii_en = 0;
 	davinci_emac_device.phy_addr = 0x09;
-	rt_sem_init(&sem_ack, "tx_ack", 1, RT_IPC_FLAG_FIFO);
+	rt_sem_init(&sem_ack, "tx_ack", 0, RT_IPC_FLAG_FIFO);
 	rt_sem_init(&priv->tx_lock, "tx_lock", 1, RT_IPC_FLAG_FIFO);
 	rt_sem_init(&priv->rx_lock, "rx_lock", 1, RT_IPC_FLAG_FIFO);
 
