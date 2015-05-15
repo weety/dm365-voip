@@ -42,7 +42,7 @@ void machine_shutdown()
 #ifdef RT_USING_FINSH
 
 #include <finsh.h>
-FINSH_FUNCTION_EXPORT(rt_hw_cpu_reset, restart the system);
+FINSH_FUNCTION_EXPORT_ALIAS(rt_hw_cpu_reset, reset, restart the system);
 
 #ifdef FINSH_USING_MSH
 int cmd_reset(int argc, char** argv)
