@@ -69,7 +69,7 @@
 #define RT_USING_DEVICE_IPC
 
 /* Using Module System */
-//#define RT_USING_MODULE
+#define RT_USING_MODULE
 #define RT_USING_LIBDL
 
 /* Interrupt debug */
