@@ -60,13 +60,23 @@ static rt_err_t davinci_uart_configure(struct rt_serial_device *serial,
 static rt_err_t davinci_uart_control(struct rt_serial_device *serial,
                               int cmd, void *arg)
 {
+	uartport *uart = serial->parent.user_data;
+
     switch (cmd)
     {
     case RT_DEVICE_CTRL_CLR_INT:
         /* disable rx irq */
+		if (uart == UART0)
+			rt_hw_interrupt_mask(IRQ_UARTINT0);
+		else if (uart == UART1)
+			rt_hw_interrupt_mask(IRQ_UARTINT1);
         break;
     case RT_DEVICE_CTRL_SET_INT:
         /* enable rx irq */
+		if (uart == UART0)
+			rt_hw_interrupt_umask(IRQ_UARTINT0);
+		else if (uart == UART1)
+			rt_hw_interrupt_umask(IRQ_UARTINT1);
         break;
     }
 
@@ -129,7 +139,7 @@ void davinci_uart0_init(void)
 	UART0->pwremu_mgmt = 0x6000;
 	rt_hw_interrupt_install(IRQ_UARTINT0, rt_davinci_serial_handler, 
 							(void *)&davinci_serial_dev0, "UART0");
-	rt_hw_interrupt_umask(IRQ_UARTINT0);
+	rt_hw_interrupt_mask(IRQ_UARTINT0);
 	UART0->ier = 0x05;
 }
 
@@ -181,7 +191,7 @@ void davinci_uart1_init(void)
 	
 	rt_hw_interrupt_install(IRQ_UARTINT1, rt_davinci_serial_handler, 
 							(void *)&davinci_serial_dev1, "UART1");
-	rt_hw_interrupt_umask(IRQ_UARTINT1);
+	rt_hw_interrupt_mask(IRQ_UARTINT1);
 	UART1->ier = 0x05;
 }
 
