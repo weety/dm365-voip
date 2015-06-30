@@ -7,6 +7,8 @@ block_dev.c
 mmcsd_core.c
 sd.c
 sdio.c
+mmcsd_spi.c
+mmcsd_spi_crc.c
 """)
 
 # The set of source files associated with this SConscript file.

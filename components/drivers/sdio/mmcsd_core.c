@@ -73,9 +73,13 @@ void mmcsd_send_request(struct rt_mmcsd_host *host, struct rt_mmcsd_req *req)
             req->stop->err = 0;
             req->stop->mrq = req;
         }       
-   }
+    }
+    rt_kprintf("cmd:%d, arg:0x%08x\n", req->cmd->cmd_code, req->cmd->arg);
     host->ops->request(host, req);
     rt_sem_take(&host->sem_ack, RT_WAITING_FOREVER);
+    rt_kprintf("cmd:%d, arg:0x%08x, resp:0x%08x,0x%08x,0x%08x,0x%08x\n", 
+        req->cmd->cmd_code, req->cmd->arg, req->cmd->resp[0], 
+        req->cmd->resp[1], req->cmd->resp[2], req->cmd->resp[3]);
 }
 
 rt_int32_t mmcsd_send_cmd(struct rt_mmcsd_host *host,
@@ -121,6 +125,8 @@ rt_int32_t mmcsd_go_idle(struct rt_mmcsd_host *host)
         mmcsd_set_chip_select(host, MMCSD_CS_IGNORE);
         mmcsd_delay_ms(1);
     }
+
+    host->spi_use_crc = 0;
 
     return err;
 }
@@ -314,7 +320,17 @@ rt_int32_t mmcsd_get_csd(struct rt_mmcsd_card *card, rt_uint32_t *csd)
     }
 
     for (i = 0;i < 4;i++)
-        csd[i] = buf[i];
+    {
+        //be32_to_cpu
+        rt_uint32_t tmp;
+        rt_uint8_t * p8 = (rt_uint8_t *)&buf[i];
+        tmp = *p8++; tmp <<= 8;
+        tmp |= *p8++; tmp <<= 8;
+        tmp |= *p8++; tmp <<= 8;
+        tmp |= *p8++;
+        csd[i] = tmp;
+        //csd[i] = buf[i];
+    }
     rt_free(buf);
 
     return 0;
@@ -604,15 +620,21 @@ void mmcsd_detect(void *param)
                 mmcsd_power_up(host);
                 mmcsd_go_idle(host);
 
-                mmcsd_send_if_cond(host, host->valid_ocr);
 
-                err = sdio_io_send_op_cond(host, 0, &ocr);
-                if (!err)
+                if (!controller_is_spi(host))
                 {
-                    if (init_sdio(host, ocr))
-                        mmcsd_power_off(host);
-                    mmcsd_host_unlock(host);
-                    continue;
+                    mmcsd_send_if_cond(host, host->valid_ocr);
+
+                    err = sdio_io_send_op_cond(host, 0, &ocr);
+                    if (!err)
+                    {
+                        if (init_sdio(host, ocr))
+                        {
+                            mmcsd_power_off(host);
+                        }
+                        mmcsd_host_unlock(host);
+                        continue;
+                    }
                 }
 
                 /*

@@ -234,7 +234,11 @@ static void davinci_spi_chipselect(struct rt_spi_device *spi, int value)
 		if (value == 0) {
 			spidat1 |= SPIDAT1_CSHOLD_MASK;
 			spidat1 &= ~(0x1 << chip_sel);
+		} else {
+			spidat1 &= ~SPIDAT1_CSHOLD_MASK;
+			spidat1 |= 0x03;
 		}
+		rt_kprintf("0x%04x\n", spidat1);
 
 		writew(spidat1, dspi->base + SPIDAT1 + 2);
 	}
@@ -310,7 +314,7 @@ static int davinci_spi_setup_transfer(struct rt_spi_device *spi,
 
 	spifmt = (prescale << SPIFMT_PRESCALE_SHIFT) | (bits_per_word & 0x1f);
 
-	if (cfg->mode & RT_SPI_LSB)
+	if (!(cfg->mode & RT_SPI_MSB))
 		spifmt |= SPIFMT_SHIFTDIR_MASK;
 
 	if (cfg->mode & RT_SPI_CPOL)
@@ -550,117 +554,119 @@ static int davinci_spi_bufs(struct rt_spi_device *spi, struct rt_spi_message *ms
 	if (spicfg->io_type == SPI_IO_TYPE_INTR)
 		set_io_bits(dspi->base + SPIINT, SPIINT_MASKINT);
 
-	if (spicfg->io_type != SPI_IO_TYPE_DMA) {
-		/* start the transfer */
-		dspi->wcount--;
-		tx_data = dspi->get_tx(dspi);
-		spidat1 &= 0xFFFF0000;
-		spidat1 |= tx_data & 0xFFFF;
-		writel(spidat1, dspi->base + SPIDAT1);
-	} else {
-		struct davinci_spi_dma *dma;
-		unsigned long tx_reg, rx_reg;
-		struct edmacc_param param;
-		void *rx_buf;
-		int b, c;
-
-		dma = &dspi->dma;
-
-		tx_reg = (unsigned long)dspi->base + SPIDAT1;
-		rx_reg = (unsigned long)dspi->base + SPIBUF;
-
-		/*
-		 * Transmit DMA setup
-		 *
-		 * If there is transmit data, map the transmit buffer, set it
-		 * as the source of data and set the source B index to data
-		 * size. If there is no transmit data, set the transmit register
-		 * as the source of data, and set the source B index to zero.
-		 *
-		 * The destination is always the transmit register itself. And
-		 * the destination never increments.
-		 */
-
-		if (msg->send_buf) {
-			mmu_clean_dcache((rt_uint32_t)msg->send_buf, (rt_uint32_t)msg->length);
-		}
-
-		/*
-		 * If number of words is greater than 65535, then we need
-		 * to configure a 3 dimension transfer.  Use the BCNTRLD
-		 * feature to allow for transfers that aren't even multiples
-		 * of 65535 (or any other possible b size) by first transferring
-		 * the remainder amount then grabbing the next N blocks of
-		 * 65535 words.
-		 */
-
-		c = dspi->wcount / (SZ_64K - 1);	/* N 65535 Blocks */
-		b = dspi->wcount - c * (SZ_64K - 1);	/* Remainder */
-		if (b)
-			c++;
-		else
-			b = SZ_64K - 1;
-
-		param.opt = TCINTEN | EDMA_TCC(dma->tx_channel);
-		param.src = msg->send_buf ? msg->send_buf : tx_reg;
-		param.a_b_cnt = b << 16 | data_type;
-		param.dst = tx_reg;
-		param.src_dst_bidx = msg->send_buf ? data_type : 0;
-		param.link_bcntrld = 0xffffffff;
-		param.src_dst_cidx = msg->send_buf ? data_type : 0;
-		param.ccnt = c;
-		edma_write_slot(dma->tx_channel, &param);
-		edma_link(dma->tx_channel, dma->dummy_param_slot);
-
-		/*
-		 * Receive DMA setup
-		 *
-		 * If there is receive buffer, use it to receive data. If there
-		 * is none provided, use a temporary receive buffer. Set the
-		 * destination B index to 0 so effectively only one byte is used
-		 * in the temporary buffer (address does not increment).
-		 *
-		 * The source of receive data is the receive data register. The
-		 * source address never increments.
-		 */
-
-		if (msg->recv_buf) {
-			rx_buf = msg->recv_buf;
-			rx_buf_count = msg->length;
+	if (msg->length > 0) {
+		if (spicfg->io_type != SPI_IO_TYPE_DMA) {
+			/* start the transfer */
+			dspi->wcount--;
+			tx_data = dspi->get_tx(dspi);
+			spidat1 &= 0xFFFF0000;
+			spidat1 |= tx_data & 0xFFFF;
+			writel(spidat1, dspi->base + SPIDAT1);
 		} else {
-			rx_buf = dspi->rx_tmp_buf;
-			rx_buf_count = sizeof(dspi->rx_tmp_buf);
+			struct davinci_spi_dma *dma;
+			unsigned long tx_reg, rx_reg;
+			struct edmacc_param param;
+			void *rx_buf;
+			int b, c;
+
+			dma = &dspi->dma;
+
+			tx_reg = (unsigned long)dspi->base + SPIDAT1;
+			rx_reg = (unsigned long)dspi->base + SPIBUF;
+
+			/*
+			 * Transmit DMA setup
+			 *
+			 * If there is transmit data, map the transmit buffer, set it
+			 * as the source of data and set the source B index to data
+			 * size. If there is no transmit data, set the transmit register
+			 * as the source of data, and set the source B index to zero.
+			 *
+			 * The destination is always the transmit register itself. And
+			 * the destination never increments.
+			 */
+
+			if (msg->send_buf) {
+				mmu_clean_dcache((rt_uint32_t)msg->send_buf, (rt_uint32_t)msg->length);
+			}
+
+			/*
+			 * If number of words is greater than 65535, then we need
+			 * to configure a 3 dimension transfer.  Use the BCNTRLD
+			 * feature to allow for transfers that aren't even multiples
+			 * of 65535 (or any other possible b size) by first transferring
+			 * the remainder amount then grabbing the next N blocks of
+			 * 65535 words.
+			 */
+
+			c = dspi->wcount / (SZ_64K - 1);	/* N 65535 Blocks */
+			b = dspi->wcount - c * (SZ_64K - 1);	/* Remainder */
+			if (b)
+				c++;
+			else
+				b = SZ_64K - 1;
+
+			param.opt = TCINTEN | EDMA_TCC(dma->tx_channel);
+			param.src = msg->send_buf ? msg->send_buf : tx_reg;
+			param.a_b_cnt = b << 16 | data_type;
+			param.dst = tx_reg;
+			param.src_dst_bidx = msg->send_buf ? data_type : 0;
+			param.link_bcntrld = 0xffffffff;
+			param.src_dst_cidx = msg->send_buf ? data_type : 0;
+			param.ccnt = c;
+			edma_write_slot(dma->tx_channel, &param);
+			edma_link(dma->tx_channel, dma->dummy_param_slot);
+
+			/*
+			 * Receive DMA setup
+			 *
+			 * If there is receive buffer, use it to receive data. If there
+			 * is none provided, use a temporary receive buffer. Set the
+			 * destination B index to 0 so effectively only one byte is used
+			 * in the temporary buffer (address does not increment).
+			 *
+			 * The source of receive data is the receive data register. The
+			 * source address never increments.
+			 */
+
+			if (msg->recv_buf) {
+				rx_buf = msg->recv_buf;
+				rx_buf_count = msg->length;
+			} else {
+				rx_buf = dspi->rx_tmp_buf;
+				rx_buf_count = sizeof(dspi->rx_tmp_buf);
+			}
+
+			mmu_invalidate_dcache((rt_uint32_t)rx_buf, (rt_uint32_t)rx_buf_count);
+
+			param.opt = TCINTEN | EDMA_TCC(dma->rx_channel);
+			param.src = rx_reg;
+			param.a_b_cnt = b << 16 | data_type;
+			param.dst = rx_buf;
+			param.src_dst_bidx = (msg->recv_buf ? data_type : 0) << 16;
+			param.link_bcntrld = 0xffffffff;
+			param.src_dst_cidx = (msg->recv_buf ? data_type : 0) << 16;
+			param.ccnt = c;
+			edma_write_slot(dma->rx_channel, &param);
+
+			if (dspi->cshold_bug)
+				writew(spidat1 >> 16, dspi->base + SPIDAT1 + 2);
+
+			edma_start(dma->rx_channel);
+			edma_start(dma->tx_channel);
+			set_io_bits(dspi->base + SPIINT, SPIINT_DMA_REQ_EN);
 		}
 
-		mmu_invalidate_dcache((rt_uint32_t)rx_buf, (rt_uint32_t)rx_buf_count);
-
-		param.opt = TCINTEN | EDMA_TCC(dma->rx_channel);
-		param.src = rx_reg;
-		param.a_b_cnt = b << 16 | data_type;
-		param.dst = rx_buf;
-		param.src_dst_bidx = (msg->recv_buf ? data_type : 0) << 16;
-		param.link_bcntrld = 0xffffffff;
-		param.src_dst_cidx = (msg->recv_buf ? data_type : 0) << 16;
-		param.ccnt = c;
-		edma_write_slot(dma->rx_channel, &param);
-
-		if (dspi->cshold_bug)
-			writew(spidat1 >> 16, dspi->base + SPIDAT1 + 2);
-
-		edma_start(dma->rx_channel);
-		edma_start(dma->tx_channel);
-		set_io_bits(dspi->base + SPIINT, SPIINT_DMA_REQ_EN);
-	}
-
-	/* Wait for the transfer to complete */
-	if (spicfg->io_type != SPI_IO_TYPE_POLL) {
-		rt_completion_wait(&(dspi->done), RT_WAITING_FOREVER);
-	} else {
-		while (dspi->rcount > 0 || dspi->wcount > 0) {
-			errors = davinci_spi_process_events(dspi);
-			if (errors)
-				break;
-			cpu_relax();
+		/* Wait for the transfer to complete */
+		if (spicfg->io_type != SPI_IO_TYPE_POLL) {
+			rt_completion_wait(&(dspi->done), RT_WAITING_FOREVER);
+		} else {
+			while (dspi->rcount > 0 || dspi->wcount > 0) {
+				errors = davinci_spi_process_events(dspi);
+				if (errors)
+					break;
+				cpu_relax();
+			}
 		}
 	}
 
@@ -799,7 +805,7 @@ void spi_pin_cfg(void)
 
 	val = davinci_readl(PINMUX4);
 	val &= 0xffffffc0; /* SPI1 */
-	val |= 0x00000015; /* SPI1 */
+	val |= 0x05;//0x00000015; /* SPI1 */
 	davinci_writel(val, PINMUX4);
 }
 
@@ -832,7 +838,7 @@ static int davinci_spi_probe(struct davinci_spi *dspi, char *spi_bus_name)
 	dspi->clk = clk_get("SPICLK");
 
 	dspi->version = SPI_VERSION_1;
-	dspi->chip_sel[0] = SPI_INTERN_CS;
+	dspi->chip_sel[0] = 29;//SPI_INTERN_CS;
 	dspi->chip_sel[1] = 0;//GPIO0
 
 	dspi->dma.rx_channel = 15;

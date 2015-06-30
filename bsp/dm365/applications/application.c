@@ -112,11 +112,26 @@ void rt_init_thread_entry(void* parameter)
 	}
 #endif
 
+#ifdef RT_USING_I2C
+	{
+		rt_i2c_core_init();
+		davinci_i2c_init("I2C1");
+		pcf8563_init("I2C1", 0x51);
+	}
+#endif
+
+#ifdef RT_USING_SPI
+	{
+		rt_hw_spi_init();
+	}
+#endif
+
 #ifdef RT_USING_SDIO
 	rt_mmcsd_core_init();
 	rt_mmcsd_blk_init();
 	#if 1
-	rt_hw_mmcsd_init();
+	//rt_hw_mmcsd_init();
+	spi_sd_init("spi10");
 	rt_thread_delay(RT_TICK_PER_SECOND*2);
 	/* mount sd card fat partition 1 as root directory */
 		if (dfs_mount("sd0", "/", "elm", 0, 0) == 0)
@@ -137,20 +152,6 @@ void rt_init_thread_entry(void* parameter)
 		rt_hw_davinci_emac_init();
 		/* init lwip system */
 		lwip_system_init();
-	}
-#endif
-
-#ifdef RT_USING_I2C
-	{
-		rt_i2c_core_init();
-		davinci_i2c_init("I2C1");
-		pcf8563_init("I2C1", 0x51);
-	}
-#endif
-
-#ifdef RT_USING_SPI
-	{
-		rt_hw_spi_init();
 	}
 #endif
 

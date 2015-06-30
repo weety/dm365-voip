@@ -297,15 +297,15 @@ static rt_err_t mmcsd_app_cmd(struct rt_mmcsd_host *host,
 
     cmd.cmd_code = APP_CMD;
 
-    if (card) 
+    if (card)
     {
         cmd.arg = card->rca << 16;
-        cmd.flags = RESP_R1 | CMD_AC;
-    } 
-    else 
+        cmd.flags = RESP_SPI_R1 | RESP_R1 | CMD_AC;
+    }
+    else
     {
         cmd.arg = 0;
-        cmd.flags = RESP_R1 | CMD_BCR;
+        cmd.flags = RESP_SPI_R1 | RESP_R1 | CMD_BCR;
     }
 
     err = mmcsd_send_cmd(host, &cmd, 0);
@@ -415,6 +415,12 @@ rt_err_t mmcsd_send_app_op_cond(struct rt_mmcsd_host *host,
 
     rt_memset(&cmd, 0, sizeof(struct rt_mmcsd_cmd));
 
+    if (controller_is_spi(host))
+    {
+        mmcsd_set_chip_select(host, MMCSD_CS_LOW);
+        mmcsd_delay_ms(1);
+    }
+
     cmd.cmd_code = SD_APP_OP_COND;
     if (controller_is_spi(host))
         cmd.arg = ocr & (1 << 30); /* SPI only defines one bit */
@@ -451,6 +457,13 @@ rt_err_t mmcsd_send_app_op_cond(struct rt_mmcsd_host *host,
 
     if (rocr && !controller_is_spi(host))
         *rocr = cmd.resp[0];
+
+
+    if (controller_is_spi(host))
+    {
+        mmcsd_set_chip_select(host, MMCSD_CS_HIGH);
+        mmcsd_delay_ms(1);
+    }
 
     return err;
 }
