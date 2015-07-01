@@ -261,8 +261,17 @@ static inline int davinci_spi_get_prescale(struct davinci_spi *dspi,
 
 	ret = DIV_ROUND_UP(clk_get_rate(dspi->clk), max_speed_hz);
 
-	if (ret < 3 || ret > 256)
-		return -RT_ERROR;
+	if (ret < 3) {
+		rt_kprintf("spi clock freq too high\n");
+		ret = 3;
+	}
+	if (ret > 256) {
+		rt_kprintf("spi clock freq too litter\n");
+		ret = 256;
+	}
+
+	/*if (ret < 3 || ret > 256)
+		return -RT_ERROR;*/
 
 	return ret - 1;
 }
