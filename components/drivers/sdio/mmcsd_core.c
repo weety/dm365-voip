@@ -425,6 +425,9 @@ void mmcsd_set_clock(struct rt_mmcsd_host *host, rt_uint32_t clk)
         rt_kprintf("clock too low\n");
     }
 
+    if (clk > host->freq_max)
+        clk = host->freq_max;
+
     host->io_cfg.clock = clk;
     mmcsd_set_iocfg(host);
 }

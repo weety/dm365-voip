@@ -215,7 +215,7 @@ static rt_int32_t mmcsd_switch(struct rt_mmcsd_card *card)
 
     cmd.cmd_code = SD_SWITCH;
     cmd.arg = 0x00FFFFF1;
-    cmd.flags = RESP_R1 | CMD_ADTC;
+    cmd.flags = RESP_SPI_R1 | RESP_R1 | CMD_ADTC;
 
     rt_memset(&data, 0, sizeof(struct rt_mmcsd_data));
 
@@ -245,7 +245,7 @@ static rt_int32_t mmcsd_switch(struct rt_mmcsd_card *card)
 
     cmd.cmd_code = SD_SWITCH;
     cmd.arg = 0x80FFFFF1;
-    cmd.flags = RESP_R1 | CMD_ADTC;
+    cmd.flags = RESP_SPI_R1 | RESP_R1 | CMD_ADTC;
 
     rt_memset(&data, 0, sizeof(struct rt_mmcsd_data));
 
