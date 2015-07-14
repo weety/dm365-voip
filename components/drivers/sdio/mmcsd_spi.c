@@ -147,7 +147,7 @@ static rt_err_t _send_cmd(struct rt_spi_device* device,
     message.length = sizeof(cmd_buffer);
     message.cs_take = message.cs_release = 0;
 
-    _wait_ready(device);
+    //_wait_ready(device);
 
     /* transfer message */
     device->bus->ops->xfer(device, &message);
@@ -498,62 +498,73 @@ static void mmcsd_spi_request(struct rt_mmcsd_host *host,
     mmcsd_req_complete(host);
 }
 
-#if 0
+#if 1
 static void mmc_spi_initsequence(struct rt_mmcsd_host *host)
 {
-	struct rt_spi_message message;
-	char buf[18];
-	struct mmcsd_spi * mmcsd_spi = (struct mmcsd_spi *)host->private_data;
-	/* Try to be very sure any previous command has completed;
-	 * wait till not-busy, skip debris from any old commands.
-	 */
-	//mmc_spi_wait_unbusy(host, r1b_timeout);
-	//_wait_ready(mmcsd_spi->spi_device);
-	//mmc_spi_readbytes(host, 10);
-	/* initial message */
-    message.send_buf = RT_NULL;
+    struct rt_spi_message message;
+    char buf[18];
+    struct mmcsd_spi * mmcsd_spi = (struct mmcsd_spi *)host->private_data;
+    /* Try to be very sure any previous command has completed;
+     * wait till not-busy, skip debris from any old commands.
+     */
+    //mmc_spi_wait_unbusy(host, r1b_timeout);
+    //_wait_ready(mmcsd_spi->spi_device);
+    //mmc_spi_readbytes(host, 10);
+    /* initial message */
+    struct rt_spi_configuration cfg;
+    cfg.data_width = 8;
+    cfg.mode = RT_SPI_MODE_0 | RT_SPI_MSB; /* SPI Compatible Modes 0 */
+    cfg.max_hz = host->freq_min;
+    rt_spi_configure(mmcsd_spi->spi_device, &cfg);
+    rt_spi_take_bus(mmcsd_spi->spi_device);
+
+    rt_memset(buf, DUMMY, 10);
+    message.send_buf = buf;
     message.recv_buf = buf;
     message.length = 10;
     message.cs_take = message.cs_release = 0;
-	mmcsd_spi->spi_device->bus->ops->xfer(mmcsd_spi->spi_device, &message);
+    mmcsd_spi->spi_device->bus->ops->xfer(mmcsd_spi->spi_device, &message);
 
-	/*
-	 * Do a burst with chipselect active-high.  We need to do this to
-	 * meet the requirement of 74 clock cycles with both chipselect
-	 * and CMD (MOSI) high before CMD0 ... after the card has been
-	 * powered up to Vdd(min), and so is ready to take commands.
-	 *
-	 * Some cards are particularly needy of this (e.g. Viking "SD256")
-	 * while most others don't seem to care.
-	 *
-	 * Note that this is one of the places MMC/SD plays games with the
-	 * SPI protocol.  Another is that when chipselect is released while
-	 * the card returns BUSY status, the clock must issue several cycles
-	 * with chipselect high before the card will stop driving its output.
-	 */
-	rt_spi_release(mmcsd_spi->spi_device);
-	message.send_buf = RT_NULL;
+    /*
+     * Do a burst with chipselect active-high.  We need to do this to
+     * meet the requirement of 74 clock cycles with both chipselect
+     * and CMD (MOSI) high before CMD0 ... after the card has been
+     * powered up to Vdd(min), and so is ready to take commands.
+     *
+     * Some cards are particularly needy of this (e.g. Viking "SD256")
+     * while most others don't seem to care.
+     *
+     * Note that this is one of the places MMC/SD plays games with the
+     * SPI protocol.  Another is that when chipselect is released while
+     * the card returns BUSY status, the clock must issue several cycles
+     * with chipselect high before the card will stop driving its output.
+     */
+    rt_spi_release(mmcsd_spi->spi_device);
+    rt_memset(buf, DUMMY, 18);
+    message.send_buf = buf;
     message.recv_buf = buf;
     message.length = 18;
     message.cs_take = message.cs_release = 0;
-	mmcsd_spi->spi_device->bus->ops->xfer(mmcsd_spi->spi_device, &message);
-#if 0
-	host->spi->mode |= SPI_CS_HIGH;
-	if (spi_setup(host->spi) != 0) {
-		/* Just warn; most cards work without it. */
-		dev_warn(&host->spi->dev,
-				"can't change chip-select polarity\n");
-		host->spi->mode &= ~SPI_CS_HIGH;
-	} else {
-		mmc_spi_readbytes(host, 18);
+    mmcsd_spi->spi_device->bus->ops->xfer(mmcsd_spi->spi_device, &message);
 
-		host->spi->mode &= ~SPI_CS_HIGH;
-		if (spi_setup(host->spi) != 0) {
-			/* Wot, we can't get the same setup we had before? */
-			dev_err(&host->spi->dev,
-					"can't restore chip-select polarity\n");
-		}
-	}
+    rt_spi_release_bus(mmcsd_spi->spi_device);
+#if 0
+    host->spi->mode |= SPI_CS_HIGH;
+    if (spi_setup(host->spi) != 0) {
+        /* Just warn; most cards work without it. */
+        dev_warn(&host->spi->dev,
+                "can't change chip-select polarity\n");
+        host->spi->mode &= ~SPI_CS_HIGH;
+    } else {
+        mmc_spi_readbytes(host, 18);
+
+        host->spi->mode &= ~SPI_CS_HIGH;
+        if (spi_setup(host->spi) != 0) {
+            /* Wot, we can't get the same setup we had before? */
+            dev_err(&host->spi->dev,
+                    "can't restore chip-select polarity\n");
+        }
+    }
 #endif
 }
 #endif
@@ -565,6 +576,8 @@ static void mmcsd_spi_set_iocfg(struct rt_mmcsd_host *host,
                                 struct rt_mmcsd_io_cfg *io_cfg)
 {
     struct mmcsd_spi * mmcsd_spi = (struct mmcsd_spi *)host->private_data;
+
+    rt_kprintf("clock %dHz busmode %d powermode %d Vdd %04x\n", io_cfg->clock, io_cfg->bus_mode, io_cfg->power_mode, io_cfg->vdd);
 
     /* config spi */
     if(io_cfg->clock != 0)
@@ -587,7 +600,7 @@ static void mmcsd_spi_set_iocfg(struct rt_mmcsd_host *host,
         if(io_cfg->power_mode == MMCSD_POWER_UP)
         {
             MSD_DEBUG("MMCSD_POWER_UP\r\n");
-			//mmc_spi_initsequence(host);
+            mmc_spi_initsequence(host);
         }
 
         if(io_cfg->power_mode == MMCSD_POWER_OFF)
